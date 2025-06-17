@@ -33,51 +33,41 @@ A single-page educational web application built with Next.js, featuring a persis
 │       ├── module.js          # Educational module schema
 │       ├── contentPage.js     # Flexible content pages
 │       └── index.js           # Schema exports
-├── config/                    # ALL configuration files
-│   ├── .eslintrc.json         # ESLint configuration
-│   ├── postcss.config.js      # PostCSS configuration  
-│   ├── tailwind.config.js     # Tailwind CSS configuration
-│   ├── sanity.config.ts       # Sanity CMS configuration
-│   ├── next.config.js         # Next.js configuration
-│   ├── tsconfig.json          # TypeScript configuration
-│   ├── .cursorrules           # Cursor IDE rules
-│   └── README.md              # Config documentation
 ├── build/                     # Build artifacts & TypeScript files
 │   ├── tsconfig.tsbuildinfo   # TypeScript incremental build info
 │   ├── next-env.d.ts          # Next.js TypeScript declarations
 │   └── README.md              # Build directory documentation
-├── scripts/                   # Package management files
-│   ├── package-lock.json      # NPM dependency lock file
-│   └── README.md              # Scripts directory documentation
 ├── docs/                      # Documentation & examples
 │   ├── env.example            # Environment variables template
 │   └── README.md              # Documentation index
 ├── README.md                  # Main project documentation
 ├── package.json               # Dependencies and scripts
-└── [symlinks]                 # Essential config symlinks for tools
-    ├── .eslintrc.json -> config/.eslintrc.json
-    ├── next.config.js -> config/next.config.js
-    ├── tsconfig.json -> config/tsconfig.json
-    ├── postcss.config.js -> config/postcss.config.js
-    └── package-lock.json -> scripts/package-lock.json
+├── package-lock.json          # NPM dependency lock file
+├── .env.local                 # Environment variables (protected)
+├── .gitignore                 # Git ignore rules
+├── tsconfig.json              # TypeScript configuration
+├── tailwind.config.js         # Tailwind CSS configuration
+├── postcss.config.js          # PostCSS configuration
+├── next.config.js             # Next.js configuration
+├── .eslintrc.json             # ESLint configuration
+├── sanity.config.ts           # Sanity CMS configuration
+└── .cursorrules               # Cursor IDE rules
 ```
 
-## 🧹 Ultra-Clean Organization
+## 🧹 Clean & Simple Organization
 
-This project features an **ultra-clean root directory** with only essential files:
+This project features a **clean, straightforward structure** with:
 
-- **Root Directory**: Only `package.json`, `README.md`, and required symlinks
-- **`src/`**: All source code organized by function
-- **`config/`**: ALL configuration files centralized
-- **`build/`**: Build artifacts and TypeScript files
-- **`scripts/`**: Package management files
-- **`docs/`**: Documentation and examples
+- **Essential configs in root** - All necessary configuration files where tools expect them
+- **Source code organized** - All application code in the `src/` directory
+- **Build artifacts separated** - TypeScript build files in `build/` directory
+- **Documentation grouped** - Examples and docs in `docs/` directory
 
 **Benefits:**
-- 🎯 **Instant Navigation**: Find any file type quickly
-- 🧹 **Clean Root**: No scattered config files  
-- 🔗 **Tool Compatibility**: Symlinks ensure tools work correctly
-- 📋 **Easy Maintenance**: Related files grouped together
+- 🎯 **No Complexity**: No symlinks or confusing file locations
+- 🔧 **Tool Compatibility**: All configs where tools naturally expect them
+- 📁 **Logical Organization**: Source code cleanly separated from configuration
+- 🚀 **Easy Setup**: Clone and run - everything just works
 
 ## 🛠 Setup Instructions
 
@@ -211,7 +201,7 @@ This app is optimized for Vercel deployment:
 ## 🎨 Customization
 
 ### Styling
-- Modify `config/tailwind.config.js` for design tokens
+- Modify `tailwind.config.js` for design tokens
 - Update CSS variables in `src/app/globals.css`
 - Customize components in the `src/components/` directory
 
@@ -219,17 +209,6 @@ This app is optimized for Vercel deployment:
 - Add new schemas in `src/schemas/` directory
 - Update the schema index file
 - Extend GROQ queries in `src/lib/sanity.ts`
-
-## 🏗️ Project Organization
-
-This project follows a clean folder structure:
-
-- **`src/`** - All source code
-- **`config/`** - Configuration files
-- **`docs/`** - Documentation and examples
-- **Root** - Only essential files (package.json, Next.js configs)
-
-Configuration files are organized in the `config/` directory with symlinks in the root where required by tools.
 
 ## 🤝 Contributing
 
