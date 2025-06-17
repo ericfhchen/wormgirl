@@ -1,0 +1,47 @@
+[
+  {
+    "pattern": "app/(.*)",
+    "description": "Next.js app router entry points, layouts, and dynamic route pages. Do not duplicate shared components here.",
+    "importance": 9
+  },
+  {
+    "pattern": "components/(.*)",
+    "description": "All shared UI components go here. Use Tailwind CSS classes. Should be small, composable, and stateless unless managing localized interaction.",
+    "importance": 10
+  },
+  {
+    "pattern": "context/(.*)",
+    "description": "React Context providers for global state like video playback, page selection, or module tracking. Keep them lean and composable.",
+    "importance": 10
+  },
+  {
+    "pattern": "schemas/(.*)",
+    "description": "Sanity CMS schema files for content structure. Each top-level type (e.g. module, contentPage) should be modular and import reusable sub-schemas like blocks or sections.",
+    "importance": 10
+  },
+  {
+    "pattern": "lib/(.*)",
+    "description": "Utility functions, hooks, and Sanity/MUX API clients. Should not include components or rendering logic.",
+    "importance": 8
+  },
+  {
+    "pattern": "components/portableText/(.*)",
+    "description": "Custom Portable Text renderers for Sanity CMS rich text blocks. Include block-level and inline mark renderers here.",
+    "importance": 10
+  },
+  {
+    "pattern": "styles/(.*)",
+    "description": "Tailwind setup and any global styles. Avoid unnecessary custom CSS unless layout requires it.",
+    "importance": 7
+  },
+  {
+    "pattern": "public/(.*)",
+    "description": "Static assets such as logos or fallback images. Videos are handled by MUX and not stored here.",
+    "importance": 6
+  },
+  {
+    "pattern": ".env.local",
+    "description": "Store environment secrets here (Sanity tokens, MUX keys, etc). Never commit this file.",
+    "importance": 10
+  }
+]

@@ -1,0 +1,49 @@
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  experimental: {
+    appDir: true,
+  },
+  images: {
+    domains: ['cdn.sanity.io'],
+    formats: ['image/avif', 'image/webp'],
+  },
+  // Enable static exports if needed for Vercel
+  // output: 'export',
+  // trailingSlash: true,
+  
+  // Performance optimizations
+  compiler: {
+    // Remove console logs in production
+    removeConsole: process.env.NODE_ENV === 'production',
+  },
+  
+  // ESLint configuration
+  eslint: {
+    dirs: ['pages', 'src/app', 'src/components', 'src/lib', 'src/context'],
+  },
+  
+  // Headers for video optimization
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+          {
+            key: 'X-XSS-Protection',
+            value: '1; mode=block',
+          },
+        ],
+      },
+    ]
+  },
+}
+
+module.exports = nextConfig 
