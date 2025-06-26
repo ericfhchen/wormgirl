@@ -20,7 +20,12 @@ export default function VideoPlayer() {
           <div className="w-16 h-16 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-lg">Video Player</p>
           <p className="text-sm opacity-75">
-            {videoState.isIdle ? 'Idle Mode' : `Module ${videoState.currentModuleIndex + 1}`}
+            {videoState.isIdle 
+              ? 'Idle Mode' 
+              : videoState.currentModuleIndex === -1 
+                ? 'Select a module to begin'
+                : `Module ${videoState.currentModuleIndex + 1}`
+            }
           </p>
         </div>
       </div>

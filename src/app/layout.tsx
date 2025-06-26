@@ -17,14 +17,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="font-sans">
+      <body className="font-sans overflow-hidden">
         <VideoProvider>
           <PageStateProvider>
-            <div className="flex h-screen bg-dark">
+            <div className="flex h-screen bg-dark overflow-hidden">
               {/* Main content area - video player */}
               <main className="flex-1 flex flex-col overflow-hidden">
                 {/* Video Player */}
-                <div className="relative h-full bg-black">
+                <div className="relative h-full bg-black overflow-hidden">
                   <VideoPlayer />
                 </div>
 
@@ -33,7 +33,7 @@ export default function RootLayout({
               </main>
 
               {/* Sidebar - on the right */}
-              <aside className="w-sidebar flex-shrink-0 border-l border-light">
+              <aside className="w-sidebar flex-shrink-0 border-l border-light overflow-hidden">
                 <Sidebar />
               </aside>
 

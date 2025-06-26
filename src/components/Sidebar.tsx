@@ -1,19 +1,50 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { useVideo } from '@/context/VideoContext'
 import { usePageState } from '@/context/PageStateContext'
+import { getModules, SanityModule } from '@/lib/sanity'
+
+// Helper function to convert numbers to Roman numerals
+function toRomanNumeral(num: number): string {
+  if (num <= 0) return ''
+  
+  const values = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1]
+  const numerals = ['M', 'CM', 'D', 'CD', 'C', 'XC', 'L', 'XL', 'X', 'IX', 'V', 'IV', 'I']
+  
+  let result = ''
+  
+  for (let i = 0; i < values.length; i++) {
+    while (num >= values[i]) {
+      result += numerals[i]
+      num -= values[i]
+    }
+  }
+  
+  return result
+}
 
 export default function Sidebar() {
   const { state: videoState, playModule } = useVideo()
   const { state: pageState, setCurrentPage, setModulePage, expandContentPanel } = usePageState()
+  const [modules, setModules] = useState<SanityModule[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // Mock data - this will be replaced with actual Sanity data
-  const mockModules = [
-    { id: 1, title: "Introduction to Design", slug: "intro-design", order: 1 },
-    { id: 2, title: "Color Theory", slug: "color-theory", order: 2 },
-    { id: 3, title: "Typography Basics", slug: "typography", order: 3 },
-    { id: 4, title: "Layout Principles", slug: "layout", order: 4 },
-  ]
+  // Fetch modules from Sanity
+  useEffect(() => {
+    async function fetchModules() {
+      try {
+        const fetchedModules = await getModules()
+        setModules(fetchedModules)
+      } catch (error) {
+        console.error('Error fetching modules:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchModules()
+  }, [])
 
   const contentPages = [
     { slug: 'consulting', title: 'Consulting', pageType: 'consulting' as const },
@@ -33,58 +64,46 @@ export default function Sidebar() {
 
   return (
     <div className="h-full flex flex-col bg-dark">
-      {/* Header */}
-      <div className="p-1 border-b border-light">
-        <div className="flex items-center justify-end">
-          {/* Content panel expand button - only show when collapsed */}
-          {!pageState.isContentPanelExpanded && (
-            <button
-              onClick={expandContentPanel}
-              className="p-3 hover:bg-dark rounded transition-colors"
-              title="Show content panel"
-            >
-              <svg
-                className="w-4 h-4 text-muted"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7" />
-              </svg>
-            </button>
-          )}
-        </div>
-      </div>
 
       {/* Navigation */}
-      <div className="flex flex-col h-full overflow-y-auto custom-scrollbar justify-between">
+      <div className="flex flex-col h-full custom-scrollbar justify-between">
         {/* Educational Modules */}
         <div className="p-0">
           <div className="space-y-0">
-            {mockModules.map((module, index) => (
-              <button
-                key={module.id}
-                onClick={() => handleModuleClick(index, module.slug)}
-                className={`group w-full text-left p-0 transition-colors ${
-                  pageState.currentPage === 'module' && videoState.currentModuleIndex === index
-                    ? 'bg-light text-dark'
-                    : 'hover:bg-light hover:text-primary'
-                }`}
-              >
-                <div className="flex flex-col p-3 pb-8 justify-start space-y-1 border-b border-light">
-                  <div className={`w-6 h-6 justify-center text-xl font-serif font-bold ${
-                    videoState.currentModuleIndex === index
-                      ? 'text-dark'
-                      : 'text-light group-hover:text-dark'
-                  }`}>
-                    {module.order}
+            {loading ? (
+              <div className="p-3 text-center text-muted text-sm">
+                Loading modules...
+              </div>
+            ) : modules.length === 0 ? (
+              <div className="p-3 text-center text-muted text-sm">
+                No modules found
+              </div>
+            ) : (
+              modules.map((module, index) => (
+                <button
+                  key={module._id}
+                  onClick={() => handleModuleClick(index, module.slug.current)}
+                  className={`group w-full text-left p-0 transition-colors ${
+                    pageState.currentPage === 'module' && videoState.currentModuleIndex === index
+                      ? 'bg-light text-dark'
+                      : 'hover:bg-light hover:text-primary'
+                  }`}
+                >
+                  <div className="flex flex-col p-3 pb-8 justify-start space-y-1 border-b border-light">
+                    <div className={`w-6 h-6 justify-center text-xl font-serif font-bold ${
+                      videoState.currentModuleIndex === index
+                        ? 'text-dark'
+                        : 'text-light group-hover:text-dark'
+                    }`}>
+                      {index === 0 ? 'PRELUDE' : toRomanNumeral(module.order)}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">{module.title}</p>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-sm">{module.title}</p>
-                  </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              ))
+            )}
           </div>
         </div>
 

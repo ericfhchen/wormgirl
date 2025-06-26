@@ -28,7 +28,7 @@ const PageStateContext = createContext<PageStateContextType | undefined>(undefin
 // Provider
 export function PageStateProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<PageState>({
-    currentPage: 'module',
+    currentPage: null as any,
     currentPageSlug: null,
     previousModuleIndex: null,
     isContentPanelExpanded: false

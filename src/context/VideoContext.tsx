@@ -33,7 +33,7 @@ interface VideoContextType {
 
 // Initial state
 const initialState: VideoState = {
-  currentModuleIndex: 0,
+  currentModuleIndex: -1,
   isPlaying: false,
   isIdle: false,
   currentTime: 0,

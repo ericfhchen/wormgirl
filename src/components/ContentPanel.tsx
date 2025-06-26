@@ -1,17 +1,37 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+import { PortableText } from '@portabletext/react'
 import { usePageState } from '@/context/PageStateContext'
 import { useVideo } from '@/context/VideoContext'
+import { getModules, SanityModule } from '@/lib/sanity'
 
 export default function ContentPanel() {
   const { state: pageState, toggleContentPanel } = usePageState()
   const { state: videoState } = useVideo()
+  const [modules, setModules] = useState<SanityModule[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // Mock content for different pages
-  const mockModuleContent = {
-    title: "Module Content",
-    content: "This is where the rich text content from Sanity will be displayed using Portable Text components."
-  }
+  // Fetch modules from Sanity
+  useEffect(() => {
+    async function fetchModules() {
+      try {
+        const fetchedModules = await getModules()
+        setModules(fetchedModules)
+      } catch (error) {
+        console.error('Error fetching modules:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchModules()
+  }, [])
+
+  // Get current module based on currentModuleIndex
+  const currentModule = videoState.currentModuleIndex >= 0 && videoState.currentModuleIndex < modules.length
+    ? modules[videoState.currentModuleIndex]
+    : null
 
   const mockContentPageData = {
     consulting: {
@@ -32,52 +52,97 @@ export default function ContentPanel() {
     }
   }
 
-  const renderModuleContent = () => (
-    <div className="p-6">
-      <div className="max-w-none">
-        <header className="mb-6">
-          <h1 className="text-2xl font-bold text-light mb-2">
-            Module {videoState.currentModuleIndex + 1}: {mockModuleContent.title}
-          </h1>
-          <p className="text-muted text-sm">
-            Educational content synchronized with the video
-          </p>
-        </header>
+  const renderModuleContent = () => {
+    if (loading) {
+      return (
+        <div className="p-6">
+          <div className="text-center text-muted">
+            Loading module content...
+          </div>
+        </div>
+      )
+    }
 
-        <div className="prose-custom text-sm">
-          <p className="leading-relaxed mb-4">
-            {mockModuleContent.content}
-          </p>
-          
-          <h3 className="text-base font-semibold mb-2">Key Learning Points</h3>
-          <ul className="text-sm space-y-1 mb-4">
-            <li>Understanding the fundamentals</li>
-            <li>Practical application techniques</li>
-            <li>Real-world examples and case studies</li>
-            <li>Best practices and common pitfalls</li>
-          </ul>
+    if (!currentModule) {
+      return (
+        <div className="p-6">
+          <div className="text-center text-muted">
+            <p className="text-sm">No module selected</p>
+            <p className="text-xs mt-2">Select a module from the sidebar to view its content</p>
+          </div>
+        </div>
+      )
+    }
 
-          <h3 className="text-base font-semibold mb-2">Interactive Elements</h3>
-          <p className="text-sm mb-2">
-            This is where custom Portable Text components would render:
-          </p>
-          <ul className="text-sm space-y-1 mb-4">
-            <li><strong>Footnotes</strong> - Hover to reveal additional information</li>
-            <li><strong>Hover Images</strong> - Interactive image overlays</li>
-            <li><strong>Inline Videos</strong> - Supporting video content</li>
-          </ul>
+    return (
+      <div className="p-6">
+        <div className="max-w-none">
+          <header className="mb-6">
+            <h1 className="text-2xl font-bold text-light mb-2">
+              {currentModule.title}
+            </h1>
+            {currentModule.excerpt && (
+              <p className="text-muted text-sm">
+                {currentModule.excerpt}
+              </p>
+            )}
+          </header>
 
-          <div className="mt-6 p-4 bg-dark rounded-lg">
-            <h3 className="font-medium mb-2 text-sm">About This Module</h3>
-            <p className="text-xs text-muted">
-              This module demonstrates the educational content system with 
-              video-first learning and rich text articles.
-            </p>
+          <div className="prose-custom text-sm">
+            {currentModule.body && currentModule.body.length > 0 ? (
+              <PortableText  
+                value={currentModule.body}
+                components={{
+                  block: {
+                    normal: ({children}) => <p className="leading-relaxed mb-4 text-light">{children}</p>,
+                    h1: ({children}) => <h1 className="text-lg font-bold mb-3 text-light">{children}</h1>,
+                    h2: ({children}) => <h2 className="text-base font-semibold mb-2 text-light">{children}</h2>,
+                    h3: ({children}) => <h3 className="text-sm font-semibold mb-2 text-light">{children}</h3>,
+                    blockquote: ({children}) => <blockquote className="border-l-2 border-light pl-4 italic mb-4 text-muted">{children}</blockquote>,
+                  },
+                  list: {
+                    bullet: ({children}) => <ul className="text-sm space-y-1 mb-4 list-disc list-inside text-light">{children}</ul>,
+                    number: ({children}) => <ol className="text-sm space-y-1 mb-4 list-decimal list-inside text-light">{children}</ol>,
+                  },
+                  listItem: {
+                    bullet: ({children}) => <li className="text-light">{children}</li>,
+                    number: ({children}) => <li className="text-light">{children}</li>,
+                  },
+                  marks: {
+                    strong: ({children}) => <strong className="font-bold text-light">{children}</strong>,
+                    em: ({children}) => <em className="italic text-light">{children}</em>,
+                    link: ({children, value}) => (
+                      <a href={value?.href} className="text-light underline hover:text-primary" target="_blank" rel="noopener noreferrer">
+                        {children}
+                      </a>
+                    ),
+                  },
+                  types: {
+                    image: ({value}) => (
+                      <div className="my-4">
+                        <img 
+                          src={value.asset.url} 
+                          alt={value.alt || ''} 
+                          className="w-full rounded-lg"
+                        />
+                        {value.caption && (
+                          <p className="text-xs text-muted mt-2 text-center">{value.caption}</p>
+                        )}
+                      </div>
+                    ),
+                  },
+                }}
+              />
+            ) : (
+              <div className="text-center text-muted">
+                <p className="text-sm">No content available for this module</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   const renderContentPage = () => {
     const currentPageData = mockContentPageData[pageState.currentPage as keyof typeof mockContentPageData]
@@ -133,7 +198,7 @@ export default function ContentPanel() {
   }
 
   return (
-    <div className="w-96 border-l border-light bg-dark flex flex-col animate-slide-in-right">
+    <div className="w-96 border-l border-light bg-dark flex flex-col animate-slide-in-right overflow-hidden">
       {/* Panel header with close button */}
       <div className="flex items-center justify-between p-4 border-b border-light bg-dark/30">
         <h2 className="font-semibold text-light text-sm">
