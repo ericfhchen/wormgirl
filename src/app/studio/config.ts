@@ -3,15 +3,18 @@ import { structureTool } from 'sanity/structure'
 import { visionTool } from '@sanity/vision'
 import { muxInput } from 'sanity-plugin-mux-input'
 
-import { schemaTypes } from './src/schemas'
+import { schemaTypes } from '../../schemas'
 
 export default defineConfig({
-  name: 'default',
-  title: 'Worm Girl Educational App',
-
+  name: 'wormgirl-studio',
+  title: 'Worm Girl Educational App - Studio',
+  
   projectId: '8dob17cg',
   dataset: 'production',
-
+  
+  // Studio URL (customize as needed)
+  basePath: '/studio',
+  
   plugins: [
     structureTool({
       structure: (S) =>
@@ -25,6 +28,9 @@ export default defineConfig({
                 S.documentTypeList('module')
                   .title('Educational Modules')
                   .defaultOrdering([{ field: 'order', direction: 'asc' }])
+                  .canHandleIntent((intent, params) => {
+                    return intent === 'create' && params.type === 'module'
+                  })
               ),
             
             S.divider(),
@@ -48,11 +54,26 @@ export default defineConfig({
     }),
     visionTool(),
     muxInput({
+      // MUX configuration for video handling
       mp4_support: 'standard'
     }),
   ],
-
+  
   schema: {
     types: schemaTypes,
+  },
+  
+  // Document actions
+  document: {
+    actions: (prev, context) => {
+      // Customize document actions here if needed
+      return prev
+    },
+  },
+  
+  // Tools configuration
+  tools: (prev, context) => {
+    // Only show certain tools based on user role if needed
+    return prev
   },
 }) 

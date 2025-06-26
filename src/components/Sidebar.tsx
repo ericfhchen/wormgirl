@@ -5,7 +5,7 @@ import { usePageState } from '@/context/PageStateContext'
 
 export default function Sidebar() {
   const { state: videoState, playModule } = useVideo()
-  const { state: pageState, setCurrentPage, setModulePage } = usePageState()
+  const { state: pageState, setCurrentPage, setModulePage, expandContentPanel } = usePageState()
 
   // Mock data - this will be replaced with actual Sanity data
   const mockModules = [
@@ -32,45 +32,55 @@ export default function Sidebar() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-background">
+    <div className="h-full flex flex-col bg-dark">
       {/* Header */}
-      <div className="p-6 border-b border-border">
-        <h1 className="text-xl font-bold text-foreground">
-          Educational App
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Interactive Learning Experience
-        </p>
+      <div className="p-1 border-b border-light">
+        <div className="flex items-center justify-end">
+          {/* Content panel expand button - only show when collapsed */}
+          {!pageState.isContentPanelExpanded && (
+            <button
+              onClick={expandContentPanel}
+              className="p-3 hover:bg-dark rounded transition-colors"
+              title="Show content panel"
+            >
+              <svg
+                className="w-4 h-4 text-muted"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Navigation */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
+      <div className="flex flex-col h-full overflow-y-auto custom-scrollbar justify-between">
         {/* Educational Modules */}
-        <div className="p-4">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-            Modules
-          </h2>
-          <div className="space-y-1">
+        <div className="p-0">
+          <div className="space-y-0">
             {mockModules.map((module, index) => (
               <button
                 key={module.id}
                 onClick={() => handleModuleClick(index, module.slug)}
-                className={`w-full text-left p-3 rounded-lg transition-colors ${
+                className={`group w-full text-left p-0 transition-colors ${
                   pageState.currentPage === 'module' && videoState.currentModuleIndex === index
-                    ? 'bg-primary text-primary-foreground'
-                    : 'hover:bg-muted text-foreground'
+                    ? 'bg-light text-dark'
+                    : 'hover:bg-light hover:text-primary'
                 }`}
               >
-                <div className="flex items-center space-x-3">
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                <div className="flex flex-col p-3 pb-8 justify-start space-y-1 border-b border-light">
+                  <div className={`w-6 h-6 justify-center text-xl font-serif font-bold ${
                     videoState.currentModuleIndex === index
-                      ? 'bg-primary-foreground text-primary'
-                      : 'bg-muted text-muted-foreground'
+                      ? 'text-dark'
+                      : 'text-light group-hover:text-dark'
                   }`}>
                     {module.order}
                   </div>
                   <div className="flex-1">
-                    <p className="font-medium">{module.title}</p>
+                    <p className="font-medium text-sm">{module.title}</p>
                   </div>
                 </div>
               </button>
@@ -78,38 +88,42 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* Content Pages */}
-        <div className="p-4 border-t border-border">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-            Pages
-          </h2>
-          <div className="space-y-1">
-            {contentPages.map((page) => (
-              <button
-                key={page.slug}
-                onClick={() => handleContentPageClick(page.pageType, page.slug)}
-                className={`w-full text-left p-3 rounded-lg transition-colors ${
-                  pageState.currentPage === page.pageType
-                    ? 'bg-secondary text-secondary-foreground'
-                    : 'hover:bg-muted text-foreground'
-                }`}
-              >
-                <p className="font-medium">{page.title}</p>
-              </button>
-            ))}
+        <div>
+          {/* Logo */}
+          <div className="p-2 pb-3">
+            <div className="flex justify-center">
+              <img src="/WORMGIRL_TEXT_LOGO_FINAL.svg" alt="Worm Girl" className="" />
+            </div>
+          </div>
+
+          {/* Content Pages */}
+          <div className="p-0 border-t border-light">
+            <div className="">
+              {contentPages.map((page) => (
+                <button
+                  key={page.slug}
+                  onClick={() => handleContentPageClick(page.pageType, page.slug)}
+                  className={`w-full text-left px-3 py-2 transition-colors border-b border-light text-sm ${
+                    pageState.currentPage === page.pageType
+                      ? 'bg-light text-dark'
+                      : 'hover:bg-light hover:text-dark'
+                  }`}
+                >
+                  <p className="font-medium">{page.title}</p>
+                </button>
+              ))}
+            </div>
+
+            {/* Footer */}
+            <div className="px-3 py-2 text-xs text-muted">
+              © {new Date().getFullYear()} Worm Girl
+            </div>
           </div>
         </div>
+
       </div>
 
-      {/* Footer */}
-      <div className="p-4 border-t border-border">
-        <div className="text-xs text-muted-foreground">
-          <p>Current: {pageState.currentPage}</p>
-          {pageState.currentPage === 'module' && (
-            <p>Module: {videoState.currentModuleIndex + 1}</p>
-          )}
-        </div>
-      </div>
+
     </div>
   )
 } 
