@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { useSearchParams } from 'next/navigation'
 import { PortableText } from '@portabletext/react'
 import { usePageState } from '@/context/PageStateContext'
 import { useVideo } from '@/context/VideoContext'
@@ -9,29 +8,17 @@ import { getModules, SanityModule, urlFor, client } from '@/lib/sanity'
 import { useFootnotes } from '@/lib/hooks/useFootnotes'
 import { useGlossary } from '@/lib/hooks/useGlossary'
 
-// Preview-enabled Sanity client for draft content
-const previewClient = client.withConfig({
-  token: process.env.NEXT_PUBLIC_SANITY_TOKEN,
-  perspective: 'previewDrafts',
-})
-
 export default function ContentPanel() {
-  const searchParams = useSearchParams()
   const { state: pageState, toggleContentPanel } = usePageState()
   const { state: videoState } = useVideo()
   const [modules, setModules] = useState<SanityModule[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Check if we're in preview mode
-  const isPreview = searchParams.get('preview') === 'true'
-
-  // Fetch modules from Sanity (with preview support)
+  // Fetch modules from Sanity
   useEffect(() => {
     async function fetchModules() {
       try {
-        const clientToUse = isPreview ? previewClient : client
-        
-        const fetchedModules = await clientToUse.fetch(`
+        const fetchedModules = await client.fetch(`
           *[_type == "module"] | order(order asc) {
             _id,
             title,
@@ -73,7 +60,7 @@ export default function ContentPanel() {
     }
 
     fetchModules()
-  }, [isPreview])
+  }, [])
 
   // Get current module based on currentModuleIndex
   const currentModule = videoState.currentModuleIndex >= 0 && videoState.currentModuleIndex < modules.length
@@ -130,7 +117,6 @@ export default function ContentPanel() {
       return (
         <div className="p-6">
           <div className="text-center text-muted">
-            {isPreview && <div className="text-xs text-blue-400 mb-2">PREVIEW MODE</div>}
             Loading module content...
           </div>
         </div>
@@ -141,7 +127,6 @@ export default function ContentPanel() {
       return (
         <div className="p-6">
           <div className="text-center text-muted">
-            {isPreview && <div className="text-xs text-blue-400 mb-2">PREVIEW MODE</div>}
             <p className="text-sm">No module selected</p>
             <p className="text-xs mt-2">Select a module from the sidebar to view its content</p>
           </div>
@@ -152,11 +137,6 @@ export default function ContentPanel() {
     return (
       <div className="p-4">
         <div className="max-w-none">
-          {isPreview && (
-            <div className="mb-4 p-2 bg-blue-900/20 border border-blue-500 rounded text-xs text-blue-300">
-              📝 PREVIEW MODE - You are viewing draft content
-            </div>
-          )}
           
           <header className="mb-6">
             <div className="flex items-center text-sm uppercase text-light mb-1">
@@ -373,11 +353,6 @@ export default function ContentPanel() {
     return (
       <div className="p-6">
         <div className="max-w-none">
-          {isPreview && (
-            <div className="mb-4 p-2 bg-blue-900/20 border border-blue-500 rounded text-xs text-blue-300">
-              📝 PREVIEW MODE - You are viewing draft content
-            </div>
-          )}
           
           <header className="mb-6">
             <h1 className="text-2xl font-bold text-light mb-2">

@@ -1,5 +1,4 @@
 import './globals.css'
-import { Suspense } from 'react'
 import { VideoProvider } from '@/context/VideoContext'
 import { PageStateProvider } from '@/context/PageStateContext'
 import VideoPlayer from '@/components/VideoPlayer'
@@ -39,9 +38,7 @@ export default function RootLayout({
               </aside>
 
               {/* Content Panel - collapsible */}
-              <Suspense fallback={<div>Loading...</div>}>
-                <ContentPanel />
-              </Suspense>
+              <ContentPanel />
             </div>
           </PageStateProvider>
         </VideoProvider>
