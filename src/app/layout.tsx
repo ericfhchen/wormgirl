@@ -28,8 +28,8 @@ export default function RootLayout({
                   <VideoPlayer />
                 </div>
 
-                {/* Video area when content panel is collapsed */}
-                <div className="flex-1 bg-black"></div>
+                {/* Page content rendered here */}
+                {children}
               </main>
 
               {/* Sidebar - on the right */}

@@ -1,7 +1,7 @@
 export default function HomePage() {
   return (
     <div className="h-full">
-      {/* Basic home page - preview functionality removed */}
+      {/* The content is handled by the root layout */}
     </div>
   )
 } 

@@ -1,15 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    appDir: true,
-  },
+  // Remove the outdated appDir configuration
   images: {
     domains: ['cdn.sanity.io'],
     formats: ['image/avif', 'image/webp'],
   },
-  // Enable static exports if needed for Vercel
-  // output: 'export',
-  // trailingSlash: true,
   
   // Performance optimizations
   compiler: {
