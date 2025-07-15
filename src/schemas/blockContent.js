@@ -13,6 +13,7 @@ export default {
         {title: 'H3', value: 'h3'},
         {title: 'H4', value: 'h4'},
         {title: 'Quote', value: 'blockquote'},
+        {title: 'Intro Passage', value: 'intro'},
       ],
       lists: [
         {title: 'Bullet', value: 'bullet'},
@@ -25,14 +26,30 @@ export default {
         ],
         annotations: [
           {
-            title: 'Footnote',
-            name: 'footnote',
+            title: 'Footnote Reference',
+            name: 'footnoteRef',
             type: 'object',
             fields: [
               {
-                title: 'Footnote Text',
-                name: 'text',
-                type: 'text'
+                title: 'Footnote ID',
+                name: 'footnoteId',
+                type: 'string',
+                description: 'Must match a footnote ID in the module\'s footnotes section',
+                validation: Rule => Rule.required()
+              }
+            ]
+          },
+          {
+            title: 'Glossary Reference',
+            name: 'glossaryRef',
+            type: 'object',
+            fields: [
+              {
+                title: 'Glossary ID',
+                name: 'glossaryId',
+                type: 'string',
+                description: 'Must match a glossary ID in the module\'s glossary section',
+                validation: Rule => Rule.required()
               }
             ]
           },
@@ -44,10 +61,7 @@ export default {
               {
                 title: 'Image',
                 name: 'image',
-                type: 'image',
-                options: {
-                  hotspot: true
-                }
+                type: 'image'
               },
               {
                 title: 'Alt Text',
@@ -72,8 +86,7 @@ export default {
       }
     },
     {
-      type: 'image',
-      options: {hotspot: true}
+      type: 'image'
     },
     {
       title: 'Inline Video',

@@ -25,6 +25,7 @@ export interface SanityModule {
   title: string
   slug: { current: string }
   order: number
+  timeline?: string
   video: {
     asset: {
       playbackId: string
@@ -38,6 +39,15 @@ export interface SanityModule {
     }
   }
   body: any[] // Portable Text blocks
+  glossary?: Array<{
+    id: string
+    term: string
+    definition: any[]
+  }>
+  footnotes?: Array<{
+    id: string
+    content: any[]
+  }>
   excerpt?: string
 }
 
@@ -82,6 +92,7 @@ export const MODULES_QUERY = `
     title,
     slug,
     order,
+    timeline,
     video {
       asset-> {
         playbackId,
@@ -95,6 +106,15 @@ export const MODULES_QUERY = `
       }
     },
     body,
+    glossary[] {
+      id,
+      term,
+      definition
+    },
+    footnotes[] {
+      id,
+      content
+    },
     excerpt
   }
 `
@@ -105,6 +125,7 @@ export const MODULE_BY_SLUG_QUERY = `
     title,
     slug,
     order,
+    timeline,
     video {
       asset-> {
         playbackId,
@@ -118,6 +139,15 @@ export const MODULE_BY_SLUG_QUERY = `
       }
     },
     body,
+    glossary[] {
+      id,
+      term,
+      definition
+    },
+    footnotes[] {
+      id,
+      content
+    },
     excerpt
   }
 `
@@ -194,7 +224,21 @@ export const CONTENT_PAGE_BY_SLUG_QUERY = `
 
 // Helper functions for fetching data
 export async function getModules(): Promise<SanityModule[]> {
-  return await client.fetch(MODULES_QUERY)
+  return client.fetch(`
+    *[_type == "module"] | order(order asc) {
+      _id,
+      title,
+      slug,
+      order,
+      timeline,
+      video,
+      idleVideo,
+      body,
+      glossary,
+      footnotes,
+      excerpt
+    }
+  `)
 }
 
 export async function getModuleBySlug(slug: string): Promise<SanityModule | null> {

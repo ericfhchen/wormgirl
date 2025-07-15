@@ -14,15 +14,15 @@
   font-family: 'Times Now';
   src: url('../../public/fonts/times_now_extrabold_italic-webfont.woff2') format('woff2'),
        url('../../public/fonts/times_now_extrabold_italic-webfont.woff') format('woff');
-  font-weight: 900;
+  font-weight: 800;
   font-style: italic;
 }
 
 @font-face {
-  font-family: 'Times Now Extrabold';
+  font-family: 'Times Now';
   src: url('../../public/fonts/times_now_extrabold-webfont.woff2') format('woff2'),
        url('../../public/fonts/times_now_extrabold-webfont.woff') format('woff');
-  font-weight: 900;
+  font-weight: 800;
   font-style: normal;
 }
 
@@ -98,14 +98,7 @@
     background-color: var(--muted);
   }
 
-  /* Hide scrollbars */
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
-.scrollbar-hide {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
-} 
+  
 
   /* Video player custom styles */
   .video-overlay {
@@ -127,32 +120,33 @@
     @apply prose prose-gray max-w-none;
   }
   
-  .prose-custom h1 {
-    @apply text-2xl font-bold mb-4;
+  .prose-custom * {
+    color: var(--light) !important;
   }
   
-  .prose-custom h2 {
-    @apply text-xl font-semibold mb-3;
+  .prose-custom li::marker {
+    color: var(--light) !important;
   }
   
-  .prose-custom h3 {
-    @apply text-lg font-medium mb-2;
+  .prose-custom ul li::marker {
+    color: var(--light) !important;
   }
   
-  .prose-custom p {
-    @apply mb-4 leading-relaxed;
+  .prose-custom ol li::marker {
+    color: var(--light) !important;
   }
   
-  .prose-custom ul, .prose-custom ol {
-    @apply mb-4 pl-6;
+  /* Glossary term styling */
+  .glossary-term {
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    transition: color 0.2s ease;
   }
   
-  .prose-custom li {
-    @apply mb-1;
-  }
-  
-  .prose-custom blockquote {
-    @apply border-l-4 border-dark pl-4 italic text-muted;
+  .glossary-term:hover {
+    color: var(--muted);
   }
 }
 

@@ -31,10 +31,7 @@ export default {
             {
               name: 'image',
               title: 'Category Image',
-              type: 'image',
-              options: {
-                hotspot: true
-              }
+              type: 'image'
             }
           ],
           preview: {
