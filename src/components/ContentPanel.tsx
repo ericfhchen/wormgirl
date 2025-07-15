@@ -236,52 +236,8 @@ export default function ContentPanel() {
                   }}
                 />
                 
-                {/* Footnotes Section */}
-                {getReferencedFootnotes().length > 0 && (
-                  <div className="mt-8 pt-6 border-t border-light">
-                    <h3 className="text-base text-light font-serif font-extrabold italic">
-                      Footnotes
-                    </h3>
-                    <div className="space-y-1">
-                      {getReferencedFootnotes().map((footnote) => (
-                        <div key={footnote.id} className="text-sm">
-                          <p className="text-light leading-normal">
-                            <button
-                              id={`footnote-${footnote.id}`}
-                              onClick={() => scrollToReference(footnote.id)}
-                              className="text-light hover:text-muted transition-colors cursor-pointer font-serif font-semibold mr-1"
-                              title={`Return to reference ${footnote.number}`}
-                            >
-                              [{footnote.number}]
-                            </button>
-                            <span className="inline font-serif font-semibold">
-                              <PortableText
-                                value={footnote.content}
-                                components={{
-                                  block: {
-                                    normal: ({children}) => <span className="text-light">{children}</span>,
-                                  },
-                                  marks: {
-                                    strong: ({children}) => <strong className="font-extrabold text-light">{children}</strong>,
-                                    em: ({children}) => <em className="italic text-light">{children}</em>,
-                                    link: ({children, value}) => (
-                                      <a href={value?.href} className="text-light underline hover:text-primary" target="_blank" rel="noopener noreferrer">
-                                        {children}
-                                      </a>
-                                    ),
-                                  },
-                                }}
-                              />
-                            </span>
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Glossary Section */}
-                {getReferencedGlossaryTerms().length > 0 && (
+{/* Glossary Section */}
+{getReferencedGlossaryTerms().length > 0 && (
                   <div className="mt-8 pt-6 border-t border-light">
                     <h3 className="text-base text-light font-serif font-extrabold italic">
                       Glossary
@@ -333,6 +289,52 @@ export default function ContentPanel() {
                     </div>
                   </div>
                 )}
+
+                {/* Footnotes Section */}
+                {getReferencedFootnotes().length > 0 && (
+                  <div className="mt-8 pt-6 border-t border-light">
+                    <h3 className="text-base text-light font-serif font-extrabold italic">
+                      Footnotes
+                    </h3>
+                    <div className="space-y-1">
+                      {getReferencedFootnotes().map((footnote) => (
+                        <div key={footnote.id} className="text-sm">
+                          <p className="text-light leading-normal">
+                            <button
+                              id={`footnote-${footnote.id}`}
+                              onClick={() => scrollToReference(footnote.id)}
+                              className="text-light hover:text-muted transition-colors cursor-pointer font-serif font-semibold mr-1"
+                              title={`Return to reference ${footnote.number}`}
+                            >
+                              [{footnote.number}]
+                            </button>
+                            <span className="inline font-serif font-semibold">
+                              <PortableText
+                                value={footnote.content}
+                                components={{
+                                  block: {
+                                    normal: ({children}) => <span className="text-light">{children}</span>,
+                                  },
+                                  marks: {
+                                    strong: ({children}) => <strong className="font-extrabold text-light">{children}</strong>,
+                                    em: ({children}) => <em className="italic text-light">{children}</em>,
+                                    link: ({children, value}) => (
+                                      <a href={value?.href} className="text-light underline hover:text-primary" target="_blank" rel="noopener noreferrer">
+                                        {children}
+                                      </a>
+                                    ),
+                                  },
+                                }}
+                              />
+                            </span>
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                
               </>
             ) : (
               <div className="text-center text-muted">

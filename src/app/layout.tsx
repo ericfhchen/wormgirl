@@ -1,4 +1,5 @@
 import './globals.css'
+import React from 'react'
 import { VideoProvider } from '@/context/VideoContext'
 import { PageStateProvider } from '@/context/PageStateContext'
 import VideoPlayer from '@/components/VideoPlayer'
