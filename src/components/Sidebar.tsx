@@ -66,9 +66,9 @@ export default function Sidebar() {
     <div className="h-full flex flex-col bg-dark">
 
       {/* Navigation */}
-      <div className="flex flex-col h-full custom-scrollbar justify-between">
+      <div className="flex flex-col overflow-y-auto min-h-0 flex-1 w-full">
         {/* Educational Modules */}
-        <div className="p-0">
+        <div className="p-0 flex-1">
           <div className="space-y-0">
             {loading ? (
               <div className="p-3 text-center text-muted text-sm">
@@ -107,7 +107,8 @@ export default function Sidebar() {
           </div>
         </div>
 
-        <div>
+        {/* Bottom section with logo and content pages */}
+        <div className="mt-auto">
           {/* Logo */}
           <div className="p-2 pb-3">
             <div className="flex justify-center">

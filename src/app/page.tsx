@@ -21,21 +21,6 @@ function PreviewHandler() {
   const moduleId = searchParams.get('module')
   const pageId = searchParams.get('page')
 
-  useEffect(() => {
-    if (!isPreview) return
-
-    // Automatically expand content panel in preview mode
-    expandContentPanel()
-
-    if (moduleId) {
-      // Handle module preview
-      handleModulePreview(moduleId)
-    } else if (pageId) {
-      // Handle page preview
-      handlePagePreview(pageId)
-    }
-  }, [isPreview, moduleId, pageId])
-
   const handleModulePreview = async (id: string) => {
     try {
       const clientToUse = isPreview ? previewClient : client
@@ -83,6 +68,21 @@ function PreviewHandler() {
       console.error('Error handling page preview:', error)
     }
   }
+
+  useEffect(() => {
+    if (!isPreview) return
+
+    // Automatically expand content panel in preview mode
+    expandContentPanel()
+
+    if (moduleId) {
+      // Handle module preview
+      handleModulePreview(moduleId)
+    } else if (pageId) {
+      // Handle page preview
+      handlePagePreview(pageId)
+    }
+  }, [isPreview, moduleId, pageId, expandContentPanel, handleModulePreview, handlePagePreview])
 
   return null
 }
