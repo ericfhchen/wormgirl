@@ -4,68 +4,48 @@ import { useState, useEffect, useMemo } from 'react'
 import { PortableText } from '@portabletext/react'
 import { usePageState } from '@/context/PageStateContext'
 import { useVideo } from '@/context/VideoContext'
-import { getModules, SanityModule, urlFor, client } from '@/lib/sanity'
+import { useModules } from '@/context/ModulesContext'
+import { urlFor } from '@/lib/sanity'
 import { useFootnotes } from '@/lib/hooks/useFootnotes'
 import { useGlossary } from '@/lib/hooks/useGlossary'
 
 export default function ContentPanel() {
   const { state: pageState, toggleContentPanel } = usePageState()
   const { state: videoState } = useVideo()
-  const [modules, setModules] = useState<SanityModule[]>([])
-  const [loading, setLoading] = useState(true)
+  const { state: modulesState, getModule } = useModules()
+  
+  // State to handle closing animation
+  const [isVisible, setIsVisible] = useState(false)
+  const [isAnimatingOut, setIsAnimatingOut] = useState(false)
+  const [contentKey, setContentKey] = useState(0)
 
-  // Fetch modules from Sanity
+  // Handle panel visibility and animation states
   useEffect(() => {
-    async function fetchModules() {
-      try {
-        const fetchedModules = await client.fetch(`
-          *[_type == "module"] | order(order asc) {
-            _id,
-            title,
-            slug,
-            order,
-            timeline,
-            video {
-              asset-> {
-                playbackId,
-                assetId
-              }
-            },
-            idleVideo {
-              asset-> {
-                playbackId,
-                assetId
-              }
-            },
-            body,
-            glossary[] {
-              id,
-              term,
-              definition
-            },
-            footnotes[] {
-              id,
-              content
-            },
-            excerpt
-          }
-        `)
-        
-        setModules(fetchedModules)
-      } catch (error) {
-        console.error('Error fetching modules:', error)
-      } finally {
-        setLoading(false)
-      }
+    if (pageState.isContentPanelExpanded) {
+      setIsVisible(true)
+      setIsAnimatingOut(false)
+    } else if (isVisible) {
+      // Start closing animation
+      setIsAnimatingOut(true)
+      // Hide after animation completes
+      const timeout = setTimeout(() => {
+        setIsVisible(false)
+        setIsAnimatingOut(false)
+      }, 400) // Match animation duration
+      
+      return () => clearTimeout(timeout)
     }
+  }, [pageState.isContentPanelExpanded, isVisible])
 
-    fetchModules()
-  }, [])
+  // Reset content animation when module changes
+  useEffect(() => {
+    if (pageState.isContentPanelExpanded) {
+      setContentKey(prev => prev + 1)
+    }
+  }, [videoState.currentModuleIndex, pageState.currentPage, pageState.isContentPanelExpanded])
 
-  // Get current module based on currentModuleIndex
-  const currentModule = videoState.currentModuleIndex >= 0 && videoState.currentModuleIndex < modules.length
-    ? modules[videoState.currentModuleIndex]
-    : null
+  // Get current module from centralized context
+  const currentModule = getModule(videoState.currentModuleIndex)
 
   // Memoize footnotes to prevent new array creation on every render
   const footnotes = useMemo(() => {
@@ -114,7 +94,7 @@ export default function ContentPanel() {
   }
 
   const renderModuleContent = () => {
-    if (loading) {
+    if (modulesState.loading) {
       return (
         <div className="p-6">
           <div className="text-center text-muted">
@@ -403,12 +383,14 @@ export default function ContentPanel() {
     )
   }
 
-  if (!pageState.isContentPanelExpanded) {
+  if (!isVisible) {
     return null
   }
 
   return (
-    <div className="w-96 border-l border-light bg-dark flex flex-col animate-slide-in-right overflow-hidden">
+    <div className={`w-96 border-l border-light bg-dark flex flex-col overflow-hidden h-full ${
+      isAnimatingOut ? 'animate-slide-out-right' : 'animate-slide-in-right'
+    }`}>
       {/* Panel header with close button */}
       <div className="flex items-center justify-between p-1 border-b border-light bg-dark/30">
         {/* <h2 className="font-semibold text-light text-sm">
@@ -431,8 +413,11 @@ export default function ContentPanel() {
         </button>
       </div>
 
-      {/* Panel content */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
+      {/* Panel content with delayed fade-in */}
+      <div 
+        key={contentKey}
+        className="flex-1 overflow-y-auto custom-scrollbar animate-content-fade-in"
+      >
         {pageState.currentPage === 'module' ? renderModuleContent() : renderContentPage()}
       </div>
     </div>

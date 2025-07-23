@@ -53,7 +53,10 @@ module.exports = {
       animation: {
         'fade-in': 'fadeIn 0.5s ease-in-out',
         'slide-in': 'slideIn 0.3s ease-out',
-        'slide-in-right': 'slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+        'slide-in-right': 'slideInRight 0.4s ease-in-out',
+        'slide-in-left': 'slideInLeft 0.4s ease-in-out',
+        'slide-out-right': 'slideOutRight 0.4s ease-in-out',
+        'content-fade-in': 'contentFadeIn 0.4s ease-in-out 0.4s both',
         'pulse-slow': 'pulse 3s infinite',
       },
       keyframes: {
@@ -68,12 +71,40 @@ module.exports = {
         slideInRight: {
           '0%': { 
             transform: 'translateX(100%)',
-            opacity: '0'
+            opacity: '1'
           },
           '100%': { 
             transform: 'translateX(0)',
             opacity: '1'
           },
+        },
+        slideInLeft: {
+          '0%': { 
+            transform: 'translateX(-100%)',
+            opacity: '1'
+          },
+          '100%': { 
+            transform: 'translateX(0)',
+            opacity: '1'
+          },
+        },
+        slideOutRight: {
+          '0%': { 
+            transform: 'translateX(0)',
+            opacity: '1'
+          },
+          '99%': { 
+            transform: 'translateX(100%)',
+            opacity: '1'
+          },
+          '100%': { 
+            transform: 'translateX(100%)',
+            opacity: '0'
+          },
+        },
+        contentFadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
         },
       },
       backdropBlur: {

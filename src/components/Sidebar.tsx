@@ -3,48 +3,32 @@
 import { useState, useEffect } from 'react'
 import { useVideo } from '@/context/VideoContext'
 import { usePageState } from '@/context/PageStateContext'
-import { getModules, SanityModule } from '@/lib/sanity'
+import { useModules } from '@/context/ModulesContext'
 
-// Helper function to convert numbers to Roman numerals
+// Helper function to convert number to Roman numeral
 function toRomanNumeral(num: number): string {
-  if (num <= 0) return ''
-  
-  const values = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1]
-  const numerals = ['M', 'CM', 'D', 'CD', 'C', 'XC', 'L', 'XL', 'X', 'IX', 'V', 'IV', 'I']
+  const romanNumerals = [
+    { value: 10, numeral: 'X' },
+    { value: 9, numeral: 'IX' },
+    { value: 5, numeral: 'V' },
+    { value: 4, numeral: 'IV' },
+    { value: 1, numeral: 'I' }
+  ]
   
   let result = ''
-  
-  for (let i = 0; i < values.length; i++) {
-    while (num >= values[i]) {
-      result += numerals[i]
-      num -= values[i]
+  for (const { value, numeral } of romanNumerals) {
+    while (num >= value) {
+      result += numeral
+      num -= value
     }
   }
-  
   return result
 }
 
 export default function Sidebar() {
   const { state: videoState, playModule } = useVideo()
   const { state: pageState, setCurrentPage, setModulePage, expandContentPanel } = usePageState()
-  const [modules, setModules] = useState<SanityModule[]>([])
-  const [loading, setLoading] = useState(true)
-
-  // Fetch modules from Sanity
-  useEffect(() => {
-    async function fetchModules() {
-      try {
-        const fetchedModules = await getModules()
-        setModules(fetchedModules)
-      } catch (error) {
-        console.error('Error fetching modules:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchModules()
-  }, [])
+  const { state: modulesState } = useModules()
 
   const contentPages = [
     { slug: 'consulting', title: 'Consulting', pageType: 'consulting' as const },
@@ -54,6 +38,7 @@ export default function Sidebar() {
   ]
 
   const handleModuleClick = (index: number, slug: string) => {
+    console.log('🎯 Sidebar: Module clicked', { index, slug })
     playModule(index)
     setModulePage(index, slug)
   }
@@ -70,16 +55,16 @@ export default function Sidebar() {
         {/* Educational Modules */}
         <div className="p-0 flex-1">
           <div className="space-y-0">
-            {loading ? (
+            {modulesState.loading ? (
               <div className="p-3 text-center text-muted text-sm">
                 Loading modules...
               </div>
-            ) : modules.length === 0 ? (
+            ) : modulesState.modules.length === 0 ? (
               <div className="p-3 text-center text-muted text-sm">
                 No modules found
               </div>
             ) : (
-              modules.map((module, index) => (
+              modulesState.modules.map((module, index) => (
                 <button
                   key={module._id}
                   onClick={() => handleModuleClick(index, module.slug.current)}
