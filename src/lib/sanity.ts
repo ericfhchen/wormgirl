@@ -8,7 +8,8 @@ export const client = createClient({
   dataset: process.env.NEXT_PUBLIC_SANITY_DATASET!,
   apiVersion: process.env.NEXT_PUBLIC_SANITY_API_VERSION || '2023-12-01',
   useCdn: process.env.NODE_ENV === 'production',
-  token: process.env.SANITY_API_READ_TOKEN,
+  // Use write token for studio operations, read token for frontend
+  token: process.env.SANITY_API_WRITE_TOKEN || process.env.SANITY_API_READ_TOKEN,
 })
 
 // Image URL builder

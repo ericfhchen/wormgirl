@@ -66,7 +66,7 @@ export default function Sidebar() {
     <div className="h-full flex flex-col bg-dark">
 
       {/* Navigation */}
-      <div className="flex flex-col overflow-y-auto min-h-0 flex-1 w-full">
+      <div className="flex flex-col overflow-y-auto min-h-0 flex-1 w-full [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {/* Educational Modules */}
         <div className="p-0 flex-1">
           <div className="space-y-0">
@@ -91,7 +91,7 @@ export default function Sidebar() {
                 >
                   <div className="flex flex-col p-3 pb-8 justify-start space-y-1 border-b border-light">
                     <div className={`w-6 h-6 justify-center text-xl font-serif font-bold ${
-                      videoState.currentModuleIndex === index
+                      pageState.currentPage === 'module' && videoState.currentModuleIndex === index
                         ? 'text-dark'
                         : 'text-light group-hover:text-dark'
                     }`}>

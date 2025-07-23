@@ -74,6 +74,7 @@ export default function ContentPanel() {
 
   // Memoize glossary terms to prevent new array creation on every render
   const glossaryTerms = useMemo(() => {
+    console.log('Glossary terms from Sanity:', currentModule?.glossary) // Debug log
     return currentModule?.glossary || []
   }, [currentModule?.glossary])
 
@@ -206,6 +207,7 @@ export default function ContentPanel() {
                         )
                       },
                       glossaryRef: ({value}) => {
+                        console.log('Processing glossary reference:', value) // Debug log
                         const glossaryTerm = registerGlossaryRef(value.glossaryId)
                         return (
                           <button
@@ -236,59 +238,63 @@ export default function ContentPanel() {
                   }}
                 />
                 
-{/* Glossary Section */}
-{getReferencedGlossaryTerms().length > 0 && (
-                  <div className="mt-8 pt-6 border-t border-light">
-                    <h3 className="text-base text-light font-serif font-extrabold italic">
-                      Glossary
-                    </h3>
-                    <div className="space-y-4">
-                      {getReferencedGlossaryTerms().map((term) => (
-                        <div key={term.id} className="text-sm">
-                          <div className="text-light leading-normal">
-                            <button
-                              id={`glossary-${term.id}`}
-                              onClick={() => scrollToGlossaryReference(term.id)}
-                              className="text-light hover:text-muted transition-colors cursor-pointer font-serif font-bold inline-flex items-baseline hover:underline hover:decoration-dotted hover:underline-offset-2 group"
-                              title={`Return to reference for ${term.term}`}
-                            >
-                              <svg
-                                className="w-3 h-3 mr-1 text-light group-hover:text-muted transition-colors"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
-                              </svg>
-                              <span className="transition-all">
-                                {term.term}
-                              </span>
-                            </button>
-                            <span className="inline font-serif font-normal ml-2">
-                              <PortableText
-                                value={term.definition}
-                                components={{
-                                  block: {
-                                    normal: ({children}) => <span className="text-light">{children}</span>,
-                                  },
-                                  marks: {
-                                    strong: ({children}) => <strong className="font-extrabold text-light">{children}</strong>,
-                                    em: ({children}) => <em className="italic text-light">{children}</em>,
-                                    link: ({children, value}) => (
-                                      <a href={value?.href} className="text-light underline hover:text-primary" target="_blank" rel="noopener noreferrer">
-                                        {children}
-                                      </a>
-                                    ),
-                                  },
-                                }}
-                              />
-                            </span>
-                          </div>
+                {/* Glossary Section */}
+                  {(() => {
+                    const referencedTerms = getReferencedGlossaryTerms()
+                    console.log('Referenced glossary terms:', referencedTerms) // Debug log
+                    return referencedTerms.length > 0 && (
+                      <div className="mt-8 pt-6 border-t border-light">
+                        <h3 className="text-base text-light font-serif font-extrabold italic">
+                          Glossary
+                        </h3>
+                        <div className="space-y-4">
+                          {referencedTerms.map((term) => (
+                            <div key={term.id} className="text-sm">
+                              <div className="text-light leading-normal">
+                                <button
+                                  id={`glossary-${term.id}`}
+                                  onClick={() => scrollToGlossaryReference(term.id)}
+                                  className="text-light hover:text-muted transition-colors cursor-pointer font-serif font-bold inline-flex items-baseline hover:underline hover:decoration-dotted hover:underline-offset-2 group"
+                                  title={`Return to reference for ${term.term}`}
+                                >
+                                  <svg
+                                    className="w-3 h-3 mr-1 text-light group-hover:text-muted transition-colors"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
+                                  </svg>
+                                  <span className="transition-all">
+                                    {term.term}
+                                  </span>
+                                </button>
+                                <span className="inline font-serif font-normal ml-2">
+                                  <PortableText
+                                    value={term.definition}
+                                    components={{
+                                      block: {
+                                        normal: ({children}) => <span className="text-light">{children}</span>,
+                                      },
+                                      marks: {
+                                        strong: ({children}) => <strong className="font-extrabold text-light">{children}</strong>,
+                                        em: ({children}) => <em className="italic text-light">{children}</em>,
+                                        link: ({children, value}) => (
+                                          <a href={value?.href} className="text-light underline hover:text-primary" target="_blank" rel="noopener noreferrer">
+                                            {children}
+                                          </a>
+                                        ),
+                                      },
+                                    }}
+                                  />
+                                </span>
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                      </div>
+                    )
+                  })()}
 
                 {/* Footnotes Section */}
                 {getReferencedFootnotes().length > 0 && (

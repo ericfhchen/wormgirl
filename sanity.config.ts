@@ -11,6 +11,7 @@ export default defineConfig({
 
   projectId: '8dob17cg',
   dataset: 'production',
+  token: process.env.SANITY_API_WRITE_TOKEN,
 
   plugins: [
     structureTool({
@@ -48,7 +49,12 @@ export default defineConfig({
     }),
     visionTool(),
     muxInput({
-      mp4_support: 'standard'
+      mp4_support: 'standard',
+      // Try adding these options
+      ...(process.env.MUX_TOKEN_ID && process.env.MUX_TOKEN_SECRET && {
+        enableSignedUrls: false, // Start with unsigned URLs
+        mp4_support: 'standard'
+      })
     }),
   ],
 
