@@ -64,30 +64,31 @@ export default function Sidebar() {
                 No modules found
               </div>
             ) : (
-              modulesState.modules.map((module, index) => (
-                <button
-                  key={module._id}
-                  onClick={() => handleModuleClick(index, module.slug.current)}
-                  className={`group w-full text-left p-0 transition-colors ${
-                    pageState.currentPage === 'module' && videoState.currentModuleIndex === index
-                      ? 'bg-light text-dark'
-                      : 'hover:bg-light hover:text-primary'
-                  }`}
-                >
-                  <div className="flex flex-col p-3 pb-8 justify-start space-y-1 border-b border-light">
-                    <div className={`w-6 h-6 justify-center text-xl font-serif font-bold ${
-                      pageState.currentPage === 'module' && videoState.currentModuleIndex === index
-                        ? 'text-dark'
-                        : 'text-light group-hover:text-dark'
-                    }`}>
-                      {index === 0 ? 'PRELUDE' : toRomanNumeral(module.order)}
+              modulesState.modules.map((module, index) => {
+                const selectedIndex = pageState.previousModuleIndex !== null ? pageState.previousModuleIndex : videoState.currentModuleIndex
+                const isActive = pageState.currentPage === 'module' && selectedIndex === index
+
+                return (
+                  <button
+                    key={module._id}
+                    onClick={() => handleModuleClick(index, module.slug.current)}
+                    className={`group w-full text-left p-0 transition-colors ${
+                      isActive ? 'bg-light text-dark' : 'hover:bg-light hover:text-primary'
+                    }`}
+                  >
+                    <div className="flex flex-col p-3 pb-8 justify-start space-y-1 border-b border-light">
+                      <div className={`w-6 h-6 justify-center text-xl font-serif font-bold ${
+                        isActive ? 'text-dark' : 'text-light group-hover:text-dark'
+                      }`}>
+                        {index === 0 ? 'PRELUDE' : toRomanNumeral(module.order)}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{module.title}</p>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">{module.title}</p>
-                    </div>
-                  </div>
-                </button>
-              ))
+                  </button>
+                )
+              })
             )}
           </div>
         </div>

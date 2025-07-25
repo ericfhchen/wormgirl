@@ -37,15 +37,22 @@ export default function ContentPanel() {
     }
   }, [pageState.isContentPanelExpanded, isVisible])
 
+  // Determine which module index should drive the UI: if a user has selected a new
+  // module (stored on pageState.previousModuleIndex) use that immediately,
+  // otherwise fall back to the currently playing video index.
+  const selectedModuleIndex = pageState.previousModuleIndex !== null
+    ? pageState.previousModuleIndex
+    : videoState.currentModuleIndex
+
   // Reset content animation when module changes
   useEffect(() => {
     if (pageState.isContentPanelExpanded) {
       setContentKey(prev => prev + 1)
     }
-  }, [videoState.currentModuleIndex, pageState.currentPage, pageState.isContentPanelExpanded])
+  }, [selectedModuleIndex, pageState.currentPage, pageState.isContentPanelExpanded])
 
   // Get current module from centralized context
-  const currentModule = getModule(videoState.currentModuleIndex)
+  const currentModule = getModule(selectedModuleIndex)
 
   // Memoize footnotes to prevent new array creation on every render
   const footnotes = useMemo(() => {
