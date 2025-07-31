@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
-import { PortableText } from '@portabletext/react'
+import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { PortableText, type PortableTextReactComponents } from '@portabletext/react'
 import { usePageState } from '@/context/PageStateContext'
 import { useVideo } from '@/context/VideoContext'
 import { useModules } from '@/context/ModulesContext'
@@ -143,39 +143,39 @@ export default function ContentPanel() {
   // Memoize the PortableText components to prevent recreation on every render
   const portableTextComponents = useMemo(() => ({
     block: {
-      normal: ({children}) => <p className="leading-normal mb-4 text-light">{children}</p>,
-      h1: ({children}) => <h1 className="text-lg font-bold mb-3 text-light">{children}</h1>,
-      h2: ({children}) => <h2 className="text-base font-semibold mb-2 text-light">{children}</h2>,
-      h3: ({children}) => <h3 className="text-sm font-semibold mb-2 text-light">{children}</h3>,
-      intro: ({children}) => <blockquote className="border-l-0 border-light pl-12 font-serif font-semibold italic my-10 text-light text-lg leading-0.5">{children}</blockquote>,
-      blockquote: ({children}) => <blockquote className="border-l-0 border-light pl-4 font-serif font-semibold italic my-10 text-light text-lg leading-0.5">{children}</blockquote>,
+      normal: ({children}: any) => <p className="leading-normal mb-4 text-light">{children}</p>,
+      h1: ({children}: any) => <h1 className="text-lg font-bold mb-3 text-light">{children}</h1>,
+      h2: ({children}: any) => <h2 className="text-base font-semibold mb-2 text-light">{children}</h2>,
+      h3: ({children}: any) => <h3 className="text-sm font-semibold mb-2 text-light">{children}</h3>,
+      intro: ({children}: any) => <blockquote className="border-l-0 border-light pl-12 font-serif font-semibold italic my-10 text-light text-lg leading-0.5">{children}</blockquote>,
+      blockquote: ({children}: any) => <blockquote className="border-l-0 border-light pl-4 font-serif font-semibold italic my-10 text-light text-lg leading-0.5">{children}</blockquote>,
     },
     list: {
-      bullet: ({children}) => <ul className="text-sm space-y-1 mb-4 list-disc list-inside text-light">{children}</ul>,
-      number: ({children}) => <ol className="text-sm space-y-1 mb-4 list-decimal list-inside text-light">{children}</ol>,
+      bullet: ({children}: any) => <ul className="text-sm space-y-1 mb-4 list-disc list-inside text-light">{children}</ul>,
+      number: ({children}: any) => <ol className="text-sm space-y-1 mb-4 list-decimal list-inside text-light">{children}</ol>,
     },
     listItem: {
-      bullet: ({children}) => <li className="text-light">{children}</li>,
-      number: ({children}) => <li className="text-light">{children}</li>,
+      bullet: ({children}: any) => <li className="text-light">{children}</li>,
+      number: ({children}: any) => <li className="text-light">{children}</li>,
     },
     marks: {
-      strong: ({children}) => <strong className="font-bold text-light">{children}</strong>,
-      em: ({children}) => <em className="italic text-light">{children}</em>,
-      link: ({children, value}) => (
+      strong: ({children}: any) => <strong className="font-bold text-light">{children}</strong>,
+      em: ({children}: any) => <em className="italic text-light">{children}</em>,
+      link: ({children, value}: any) => (
         <a href={value?.href} className="text-light underline hover:text-primary" target="_blank" rel="noopener noreferrer">
           {children}
         </a>
       ),
-      footnoteRef: ({value}) => {
+      footnoteRef: ({value}: {value?: {footnoteId: string}}) => {
         // Get footnote number directly from map without calling registration function
-        const footnoteNumber = footnotesMap.get(value.footnoteId)?.number || '?'
+        const footnoteNumber = footnotesMap.get(value!.footnoteId)?.number || '?'
         return (
           <button
-            id={`footnote-ref-${value.footnoteId}`}
+            id={`footnote-ref-${value!.footnoteId}`}
             onClick={(e) => {
               e.stopPropagation()
               e.preventDefault()
-              scrollToFootnote(value.footnoteId)
+              scrollToFootnote(value!.footnoteId)
             }}
             className="inline-block text-light hover:text-muted transition-colors cursor-pointer text-xs align-super font-medium"
             title={`Go to footnote ${footnoteNumber}`}
@@ -184,16 +184,16 @@ export default function ContentPanel() {
           </button>
         )
       },
-      glossaryRef: ({value}) => {
+      glossaryRef: ({value}: {value?: {glossaryId: string}}) => {
         // Get glossary term directly from map without calling registration function
-        const glossaryTerm = glossaryMap.get(value.glossaryId)?.term || '?'
+        const glossaryTerm = glossaryMap.get(value!.glossaryId)?.term || '?'
         return (
           <button
-            id={`glossary-ref-${value.glossaryId}`}
+            id={`glossary-ref-${value!.glossaryId}`}
             onClick={(e) => {
               e.stopPropagation()
               e.preventDefault()
-              scrollToGlossaryTerm(value.glossaryId)
+              scrollToGlossaryTerm(value!.glossaryId)
             }}
             className="glossary-term text-light hover:text-muted transition-colors cursor-pointer font-medium"
             title={`Go to glossary term: ${glossaryTerm}`}
@@ -204,7 +204,7 @@ export default function ContentPanel() {
       },
     },
     types: {
-      image: ({ value }) => {
+      image: ({ value }: { value: any }) => {
         // Attempt to get original dimensions from metadata. If not present, parse the Sanity
         // asset _ref which encodes WIDTHxHEIGHT, e.g. image-abc123-1000x750-png.
         let origW: number | undefined = value?.asset?.metadata?.dimensions?.width
@@ -244,7 +244,7 @@ export default function ContentPanel() {
         )
       },
     },
-  }), [scrollToFootnote, scrollToGlossaryTerm, footnotesMap, glossaryMap])
+  }) as Partial<PortableTextReactComponents>, [scrollToFootnote, scrollToGlossaryTerm, footnotesMap, glossaryMap])
 
   // Memoise rendered PortableText markup so the component subtree (inc. images)
   // is stable between renders. It depends on the module ID (body) and the
