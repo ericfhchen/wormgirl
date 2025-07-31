@@ -31,7 +31,7 @@ const getIdleVideoUrl = (module: any) => {
 export default function VideoPlayerStacked() {
   const { state: videoState, dispatch, playModule } = useVideo()
   const { state: modulesState } = useModules()
-  const { isModulePage, state: pageState, setModulePage } = usePageState() // eslint-disable-line @typescript-eslint/no-unused-vars
+  const { isModulePage, state: pageState, setModulePage, isContentPanelExpanded } = usePageState() // eslint-disable-line @typescript-eslint/no-unused-vars
 
   // Local debug toggle – press "d" to show/hide overlay
   const [showDebug, setShowDebug] = useState(false)
@@ -589,7 +589,7 @@ export default function VideoPlayerStacked() {
           className="absolute bottom-4 bg-black text-light font-serif uppercase font-extrabold border-light border hover:bg-light hover:text-black transition-all duration-150 ease-in-out px-5 py-2 z-[9998]"
           style={{
             left: '50%',
-            transform: pageState.isContentPanelExpanded
+            transform: isContentPanelExpanded
               ? 'translateX(calc(-50% - 192px))'
               : 'translateX(-50%)',
             opacity: buttonVisible ? 1 : 0,

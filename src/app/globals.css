@@ -74,11 +74,16 @@
   }
 }
 
+html, body {
+  overflow-anchor: none;
+}
+
 @layer components {
   /* Custom scrollbar for sidebar */
   .custom-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: var(--dark) transparent;
+    overflow-anchor: none; /* Prevent scroll anchoring jumps in Chrome */
   }
   
   .custom-scrollbar::-webkit-scrollbar {

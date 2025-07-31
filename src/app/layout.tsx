@@ -10,6 +10,8 @@ import VideoPlayerStacked from '@/components/VideoPlayerStacked'
 import IntroOverlay from '@/components/IntroOverlay'
 import Sidebar from '@/components/Sidebar'
 import ContentPanel from '@/components/ContentPanel'
+import MobileTopMenu from '@/components/MobileTopMenu'
+import MobileModuleBar from '@/components/MobileModuleBar'
 import { useModules } from '@/context/ModulesContext'
 import { useVideo } from '@/context/VideoContext'
 import PreLoader from '@/components/PreLoader'
@@ -50,6 +52,7 @@ export default function RootLayout({
 
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const { state: pageState } = usePageState()
+  const isPanelVisibleDesktop = pageState.contentPanelStage !== 'hidden'
   const { state: modulesState } = useModules()
   const { state: videoState, dispatch: videoDispatch } = useVideo()
 
@@ -69,19 +72,27 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
         {children}
       </div>
 
-      {/* Sidebar - positioned to leave space for content panel when expanded */}
+      {/* Desktop Sidebar */}
       <aside 
-        className="absolute top-0 h-full border-l border-light overflow-hidden z-20 bg-dark/95 backdrop-blur-sm w-sidebar" 
+        className="hidden md:block absolute top-0 h-full border-l border-light overflow-hidden z-20 bg-dark/95 backdrop-blur-sm w-sidebar" 
         style={{ 
-          right: pageState.isContentPanelExpanded ? '384px' : '0px',
+          right: isPanelVisibleDesktop ? '384px' : '0px',
           transition: 'right 0.4s ease-in-out'
         }}
       >
         <Sidebar />
       </aside>
 
-      {/* Content Panel - positioned at right edge, slides in from left */}
-      <div className="absolute top-0 right-0 h-full z-30">
+      {/* Desktop Content Panel */}
+      <div className="hidden md:block absolute top-0 right-0 h-full z-30">
+        <ContentPanel />
+      </div>
+
+      {/* Mobile UI */}
+      <MobileTopMenu />
+      <MobileModuleBar />
+      <div className="md:hidden absolute inset-0 z-30">
+        {/* Reuse ContentPanel for mobile as well (it adapts via CSS) */}
         <ContentPanel />
       </div>
     </div>

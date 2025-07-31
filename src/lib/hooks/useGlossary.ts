@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useRef, useEffect, useMemo } from 'react'
 
 interface GlossaryTerm {
   id: string
@@ -7,7 +7,7 @@ interface GlossaryTerm {
 }
 
 export function useGlossary(glossaryTerms: any[] = []) {
-  const [glossaryRefs, setGlossaryRefs] = useState<string[]>([])
+  const glossaryRefsRef = useRef<Set<string>>(new Set())
   
   // Create glossary terms mapping
   const glossaryMap = useMemo(() => {
@@ -25,22 +25,27 @@ export function useGlossary(glossaryTerms: any[] = []) {
     
     return map
   }, [glossaryTerms])
+
+  // Helper: resolve the active content-scroll element with measurable height
+  const getScrollContainer = (): HTMLElement | null => {
+    const candidates = Array.from(document.querySelectorAll<HTMLElement>('.content-scroll'))
+    return (
+      candidates.find((el) => el.clientHeight > 0 && el.scrollHeight > el.clientHeight) ||
+      candidates.find((el) => el.clientHeight > 0) ||
+      candidates[0] ||
+      null
+    )
+  }
   
   // Register a glossary reference when it appears in the text
   const registerGlossaryRef = (glossaryId: string) => {
-    setGlossaryRefs(prev => {
-      if (!prev.includes(glossaryId)) {
-        return [...prev, glossaryId]
-      }
-      return prev
-    })
-    
+    glossaryRefsRef.current.add(glossaryId)
     return glossaryMap.get(glossaryId)?.term || '?'
   }
   
   // Get all referenced glossary terms in order of appearance
   const getReferencedGlossaryTerms = () => {
-    return glossaryRefs
+    return Array.from(glossaryRefsRef.current)
       .map(id => glossaryMap.get(id))
       .filter(Boolean) as GlossaryTerm[]
   }
@@ -49,7 +54,26 @@ export function useGlossary(glossaryTerms: any[] = []) {
   const scrollToGlossaryTerm = (glossaryId: string) => {
     const element = document.getElementById(`glossary-${glossaryId}`)
     if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      const container = getScrollContainer()
+      if (container) {
+        const offsetTop = element.getBoundingClientRect().top - container.getBoundingClientRect().top
+        const target = container.scrollTop + offsetTop - 12
+        requestAnimationFrame(() => {
+          console.debug('[Glossary] scrollToTerm', {
+            glossaryId,
+            container,
+            currentScroll: container.scrollTop,
+            target,
+            containerClientHeight: container.clientHeight,
+            containerScrollHeight: container.scrollHeight
+          })
+          const max = container.scrollHeight - container.clientHeight
+          const clamped = Math.max(0, Math.min(target, max))
+          container.scrollTo({ top: clamped, behavior: 'smooth' })
+        })
+      } else {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
     }
   }
   
@@ -57,13 +81,32 @@ export function useGlossary(glossaryTerms: any[] = []) {
   const scrollToGlossaryReference = (glossaryId: string) => {
     const element = document.getElementById(`glossary-ref-${glossaryId}`)
     if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      const container = getScrollContainer()
+      if (container) {
+        const offsetTop = element.getBoundingClientRect().top - container.getBoundingClientRect().top
+        const target = container.scrollTop + offsetTop - 12
+        requestAnimationFrame(() => {
+          console.debug('[Glossary] scrollToReference', {
+            glossaryId,
+            container,
+            currentScroll: container.scrollTop,
+            target,
+            containerClientHeight: container.clientHeight,
+            containerScrollHeight: container.scrollHeight
+          })
+          const max = container.scrollHeight - container.clientHeight
+          const clamped = Math.max(0, Math.min(target, max))
+          container.scrollTo({ top: clamped, behavior: 'smooth' })
+        })
+      } else {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
     }
   }
   
   // Reset glossary refs when module changes
   useEffect(() => {
-    setGlossaryRefs([])
+    glossaryRefsRef.current.clear()
   }, [glossaryTerms])
   
   return {

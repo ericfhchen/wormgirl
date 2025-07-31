@@ -104,7 +104,7 @@ export default function PreLoader() {
     >
       {/* Logo */}
       <img
-        src="/WORMGIRL_LOCKUP_FINAL.svg"
+        src="/WORMGIRL_LOGOMARK_FINAL.svg"
         alt="Worm Girl Logo"
         className="w-48 h-auto mb-6"
       />
