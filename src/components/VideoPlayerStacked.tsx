@@ -6,6 +6,7 @@ import attachHls from '@/lib/attachHls'
 import { useVideo } from '@/context/VideoContext'
 import { useModules } from '@/context/ModulesContext'
 import { usePageState } from '@/context/PageStateContext'
+import useIsMobile from '@/lib/hooks/useIsMobile'
 
 // Helper utilities shared with other players
 const getVideoPlaybackId = (video: any) => {
@@ -31,7 +32,14 @@ const getIdleVideoUrl = (module: any) => {
 export default function VideoPlayerStacked() {
   const { state: videoState, dispatch, playModule } = useVideo()
   const { state: modulesState } = useModules()
-  const { isModulePage, state: pageState, setModulePage, isContentPanelExpanded } = usePageState() // eslint-disable-line @typescript-eslint/no-unused-vars
+  const {
+    isModulePage,
+    state: pageState,
+    setModulePage,
+    isContentPanelExpanded,
+  } = usePageState() // eslint-disable-line @typescript-eslint/no-unused-vars
+  const isMobile = useIsMobile()
+  const buttonDuration = pageState.contentPanelStage === 'hidden' ? 300 : 500
 
   // Local debug toggle – press "d" to show/hide overlay
   const [showDebug, setShowDebug] = useState(false)
@@ -576,26 +584,37 @@ export default function VideoPlayerStacked() {
           onClick={() => {
             // Hide button immediately
             setButtonVisible(false)
-
             // Trigger next module playback
             playModule(currentIndex + 1)
-
             // Update sidebar & content panel
             const nextModule = modules[currentIndex + 1]
             if (nextModule?.slug?.current) {
               setModulePage(currentIndex + 1, nextModule.slug.current)
             }
           }}
-          className="absolute bottom-4 bg-black text-light font-serif uppercase font-extrabold border-light border hover:bg-light hover:text-black transition-all duration-150 ease-in-out px-5 py-2 z-[9998]"
+          className="absolute bottom-4 bg-black text-light font-serif uppercase font-extrabold border-light border hover:bg-light hover:text-black transition-transform ease-in-out px-5 py-2 z-[9998]"
           style={{
             left: '50%',
-            transform: isContentPanelExpanded
-              ? 'translateX(calc(-50% - 192px))'
-              : 'translateX(-50%)',
+            transform: (() => {
+              const x = !isMobile && isContentPanelExpanded
+                ? 'translateX(calc(-50% - 192px))'
+                : 'translateX(-50%)'
+
+              if (!isMobile) return x
+
+              // Match mobile bar offsets so button moves in sync
+              const y = pageState.contentPanelStage === 'expanded'
+                ? 'translateY(-83vh)'
+                : pageState.contentPanelStage === 'peek'
+                  ? 'translateY(-12.5rem)'
+                  : 'translateY(0)'
+
+              return `${x} ${y}`
+            })(),
             opacity: buttonVisible ? 1 : 0,
             transition: shouldFade
               ? 'none'
-              : 'all 0.15s ease-in-out, transform 0.15s ease-in-out',
+              : `transform ${buttonDuration}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${buttonDuration}ms cubic-bezier(0.4, 0, 0.2, 1)`,
             pointerEvents: buttonVisible ? 'auto' : 'none'
           }}
         >

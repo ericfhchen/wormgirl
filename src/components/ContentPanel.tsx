@@ -113,7 +113,7 @@ export default function ContentPanel() {
     return currentModule?.glossary || []
   }, [currentModule?.glossary])
 
-  // Initialize footnotes hook at top level
+  // ----- Footnotes / glossary hooks -----
   const {
     registerFootnoteRef,
     getReferencedFootnotes,
@@ -122,7 +122,6 @@ export default function ContentPanel() {
     footnotesMap
   } = useFootnotes(footnotes)
 
-  // Initialize glossary hook at top level
   const {
     registerGlossaryRef,
     getReferencedGlossaryTerms,
@@ -131,14 +130,48 @@ export default function ContentPanel() {
     glossaryMap
   } = useGlossary(glossaryTerms)
 
-  // Memoize referenced terms to prevent unnecessary re-renders
-  const referencedGlossaryTerms = useMemo(() => {
-    return getReferencedGlossaryTerms()
-  }, [getReferencedGlossaryTerms])
+  // Force a re-render after refs are collected so the definition lists mount
+  const [refsVersion, setRefsVersion] = useState(0)
 
-  const referencedFootnotes = useMemo(() => {
-    return getReferencedFootnotes()
-  }, [getReferencedFootnotes])
+  // ------------------------------------------------------------
+  // Register footnotes and glossary references after render
+  // ------------------------------------------------------------
+  useEffect(() => {
+    if (currentModule?.body) {
+      const walkContent = (content: any[]) => {
+        content.forEach(item => {
+          if (item._type === 'block' && item.markDefs) {
+            item.markDefs.forEach((mark: any) => {
+              if (mark._type === 'footnoteRef') {
+                registerFootnoteRef(mark.footnoteId)
+              } else if (mark._type === 'glossaryRef') {
+                registerGlossaryRef(mark.glossaryId)
+              }
+            })
+          }
+          if (item.children) {
+            walkContent(item.children)
+          }
+        })
+      }
+
+      walkContent(currentModule.body)
+
+      // refs collected → trigger one re-render to show definitions
+      setRefsVersion(v => v + 1)
+    }
+  }, [currentModule?.body]) // Remove registration functions from dependencies
+
+  // Memoize referenced terms to prevent unnecessary re-renders
+  const referencedGlossaryTerms = useMemo(
+    () => getReferencedGlossaryTerms(),
+    [refsVersion]
+  )
+
+  const referencedFootnotes = useMemo(
+    () => getReferencedFootnotes(),
+    [refsVersion]
+  )
 
   // Memoize the PortableText components to prevent recreation on every render
   const portableTextComponents = useMemo(() => ({
@@ -257,31 +290,6 @@ export default function ContentPanel() {
     }
     return null
   }, [currentModule?._id, portableTextComponents])
-
-  // Register footnotes and glossary references after render
-  useEffect(() => {
-    if (currentModule?.body) {
-      // Find all footnote and glossary references in the content
-      const walkContent = (content: any[]) => {
-        content.forEach(item => {
-          if (item._type === 'block' && item.markDefs) {
-            item.markDefs.forEach((mark: any) => {
-              if (mark._type === 'footnoteRef') {
-                registerFootnoteRef(mark.footnoteId)
-              } else if (mark._type === 'glossaryRef') {
-                registerGlossaryRef(mark.glossaryId)
-              }
-            })
-          }
-          if (item.children) {
-            walkContent(item.children)
-          }
-        })
-      }
-      
-      walkContent(currentModule.body)
-    }
-  }, [currentModule?.body]) // Remove registration functions from dependencies
 
   const mockContentPageData = {
     consulting: {
@@ -570,7 +578,7 @@ export default function ContentPanel() {
 
         {/* Content area – make wrapper scrollable so content can scroll on mobile */}
         <div
-          className="flex-1 bg-dark overflow-y-auto custom-scrollbar [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+          className="content-scroll flex-1 bg-dark overflow-y-auto custom-scrollbar [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
           onClick={(e) => {
             // Prevent clicks on content from bubbling up to panel
             e.stopPropagation()
@@ -613,7 +621,7 @@ export default function ContentPanel() {
       </div>
 
       {/* Panel content */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar animate-content-fade-in">
+      <div className="content-scroll flex-1 overflow-y-auto custom-scrollbar animate-content-fade-in">
         {pageState.currentPage === 'module' ? renderModuleContent() : renderContentPage()}
       </div>
     </div>
