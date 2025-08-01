@@ -592,9 +592,11 @@ export default function VideoPlayerStacked() {
               setModulePage(currentIndex + 1, nextModule.slug.current)
             }
           }}
-          className="absolute bottom-4 bg-black text-light font-serif uppercase font-extrabold border-light border hover:bg-light hover:text-black transition-transform ease-in-out px-5 py-2 z-[9998]"
+          className="absolute bg-black text-light font-serif uppercase font-extrabold border-light border hover:bg-light hover:text-black transition-transform ease-in-out px-5 py-2 z-[9998]"
           style={{
             left: '50%',
+            // Keep 1 rem gap above the module bar (falls back to ~4 rem if the CSS variable isnʼt set yet)
+            ...(isMobile ? { bottom: 'calc(var(--mobile-module-bar-height, 64px) + 1rem)' } : { bottom: '1rem' }),
             transform: (() => {
               const x = !isMobile && isContentPanelExpanded
                 ? 'translateX(calc(-50% - 192px))'
@@ -602,11 +604,11 @@ export default function VideoPlayerStacked() {
 
               if (!isMobile) return x
 
-              // Match mobile bar offsets so button moves in sync
+              // Move vertically in tandem with the module barʼs own translation.
               const y = pageState.contentPanelStage === 'expanded'
-                ? 'translateY(-83vh)'
+                ? 'translateY(-70vh)'
                 : pageState.contentPanelStage === 'peek'
-                  ? 'translateY(-12.5rem)'
+                  ? 'translateY(-6rem)'
                   : 'translateY(0)'
 
               return `${x} ${y}`

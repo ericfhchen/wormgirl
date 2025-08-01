@@ -53,56 +53,50 @@ export function useFootnotes(footnotes: any[] = []) {
   
   // Scroll to footnote
   const scrollToFootnote = (footnoteId: string) => {
-    const element = document.getElementById(`footnote-${footnoteId}`)
-    if (element) {
-      const container = getScrollContainer()
-      if (container) {
-        const offsetTop = element.getBoundingClientRect().top - container.getBoundingClientRect().top
-        const target = container.scrollTop + offsetTop - 12 // position inside scroll area
-        requestAnimationFrame(() => {
-          console.debug('[Footnotes] scrollToFootnote', {
-            footnoteId,
-            container,
-            currentScroll: container.scrollTop,
-            target,
-            containerClientHeight: container.clientHeight,
-            containerScrollHeight: container.scrollHeight
-          })
+    // Try immediately – if the target isn't mounted yet we'll retry on the next frame.
+    const attemptScroll = (attempt = 0) => {
+      const element = document.getElementById(`footnote-${footnoteId}`)
+      if (element) {
+        const container = getScrollContainer()
+        if (container) {
+          const offsetTop = element.getBoundingClientRect().top - container.getBoundingClientRect().top
+          const target = container.scrollTop + offsetTop - 12 // position inside scroll area
           const max = container.scrollHeight - container.clientHeight
           const clamped = Math.max(0, Math.min(target, max))
           container.scrollTo({ top: clamped, behavior: 'smooth' })
-        })
-      } else {
-        element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        } else {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      } else if (attempt < 5) {
+        // Definitions may not be rendered yet – try again on the next animation frame
+        requestAnimationFrame(() => attemptScroll(attempt + 1))
       }
     }
+
+    attemptScroll()
   }
   
   // Scroll back to footnote reference
   const scrollToReference = (footnoteId: string) => {
-    const element = document.getElementById(`footnote-ref-${footnoteId}`)
-    if (element) {
-      const container = getScrollContainer()
-      if (container) {
-        const offsetTop = element.getBoundingClientRect().top - container.getBoundingClientRect().top
-        const target = container.scrollTop + offsetTop - 12
-        requestAnimationFrame(() => {
-          console.debug('[Footnotes] scrollToReference', {
-            footnoteId,
-            container,
-            currentScroll: container.scrollTop,
-            target,
-            containerClientHeight: container.clientHeight,
-            containerScrollHeight: container.scrollHeight
-          })
+    const attemptScroll = (attempt = 0) => {
+      const element = document.getElementById(`footnote-ref-${footnoteId}`)
+      if (element) {
+        const container = getScrollContainer()
+        if (container) {
+          const offsetTop = element.getBoundingClientRect().top - container.getBoundingClientRect().top
+          const target = container.scrollTop + offsetTop - 12
           const max = container.scrollHeight - container.clientHeight
           const clamped = Math.max(0, Math.min(target, max))
           container.scrollTo({ top: clamped, behavior: 'smooth' })
-        })
-      } else {
-        element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        } else {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      } else if (attempt < 5) {
+        requestAnimationFrame(() => attemptScroll(attempt + 1))
       }
     }
+
+    attemptScroll()
   }
   
   // Reset footnote refs when module changes

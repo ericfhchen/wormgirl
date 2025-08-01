@@ -3,7 +3,7 @@
 import { useModules } from '@/context/ModulesContext'
 import { useVideo } from '@/context/VideoContext'
 import { usePageState } from '@/context/PageStateContext'
-import React, { useRef } from 'react'
+import React, { useRef, useLayoutEffect } from 'react'
 
 // Helper function to convert number to Roman numeral
 function toRomanNumeral(num: number): string {
@@ -27,6 +27,7 @@ function toRomanNumeral(num: number): string {
 
 export default function MobileModuleBar() {
   const containerRef = useRef<HTMLDivElement>(null)
+  const barRef = useRef<HTMLDivElement>(null)
   const { state: modulesState } = useModules()
   const { playModule } = useVideo()
   const {
@@ -77,8 +78,28 @@ export default function MobileModuleBar() {
   // Match bar animation timing with content panel (slower when panel visible)
   const barDurationClass = pageState.contentPanelStage === 'hidden' ? 'duration-300' : 'duration-500'
 
+  // Update a CSS custom property so other components (e.g. Next Chapter button)
+  // can position themselves relative to the bar. Runs on mount & on resize/orientation
+  useLayoutEffect(() => {
+    const updateHeight = () => {
+      if (barRef.current) {
+        const h = barRef.current.offsetHeight || 0
+        document.documentElement.style.setProperty('--mobile-module-bar-height', `${h}px`)
+      }
+    }
+
+    updateHeight()
+    window.addEventListener('resize', updateHeight)
+    window.addEventListener('orientationchange', updateHeight)
+    return () => {
+      window.removeEventListener('resize', updateHeight)
+      window.removeEventListener('orientationchange', updateHeight)
+    }
+  }, [])
+
   return (
     <div
+      ref={barRef}
       className={`md:hidden fixed bottom-0 left-0 right-0 z-40 transition-transform ease-in-out ${barDurationClass} bg-dark ${barOffsetClass}`}
       onClick={() => {
         if (pageState.isTopMenuOpen) {

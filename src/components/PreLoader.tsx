@@ -95,7 +95,7 @@ export default function PreLoader() {
 
   return (
     <div
-      className="fixed inset-0 flex flex-col items-center justify-center bg-dark z-[50]"
+      className="fixed inset-0 flex flex-col items-center justify-center bg-dark z-[9999]"
       style={{
         opacity: isClosing ? 0 : 1,
         transition: 'opacity 0.4s ease-out',
