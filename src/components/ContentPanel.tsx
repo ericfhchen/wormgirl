@@ -30,6 +30,12 @@ export default function ContentPanel() {
   const prevContentKeyRef = useRef(contentKey)
   const prevStageRef = useRef(stage)
 
+  // Track initial Y position for swipe gesture detection (must be before early returns)
+  const touchStartYRef = useRef<number | null>(null)
+
+  // Ref to scroll container for resetting scroll position on module change
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     if (!isMobile) return
 
@@ -94,9 +100,13 @@ export default function ContentPanel() {
   // changed. This remount was also triggering repeated image reloads in Chrome.
   // With the flicker issue fixed we no longer need this; comment it out to keep
   // the DOM instance stable across renders.
-  // useEffect(() => {
-  //   setContentKey(prev => prev + 1)
-  // }, [selectedModuleIndex, pageState.currentPage])
+  useEffect(() => {
+    setContentKey(prev => prev + 1)
+    // Reset scroll position to top when content changes
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ top: 0 })
+    }
+  }, [selectedModuleIndex, pageState.currentPage])
 
   // Get current module from centralized context
   const rawModule = getModule(selectedModuleIndex)
@@ -333,7 +343,7 @@ export default function ContentPanel() {
     }
 
     return (
-      <div className="p-4">
+      <div className="p-4 pb-24 md:pb-16">
         <div className="max-w-none">
           
           <header className="mb-6">
@@ -545,13 +555,47 @@ export default function ContentPanel() {
 
   const heightClass = 'h-[70vh]' // keep constant height so grab bar doesn’t jerk
 
+  // ----- Touch swipe handlers for grab bar (mobile) -----
+  const handleTouchStart = (e: React.TouchEvent) => {
+    // Only consider single-touch gestures
+    if (e.touches.length === 1) {
+      touchStartYRef.current = e.touches[0].clientY
+    }
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const startY = touchStartYRef.current
+    if (startY === null) return
+
+    const endY = e.changedTouches[0].clientY
+    const deltaY = endY - startY
+
+    // Threshold to filter out accidental small movements (in pixels)
+    const SWIPE_THRESHOLD = 40
+
+    if (deltaY < -SWIPE_THRESHOLD) {
+      // Swipe up → attempt to expand panel
+      if (stage === 'peek') {
+        expandContentPanel()
+      }
+    } else if (deltaY > SWIPE_THRESHOLD) {
+      // Swipe down → attempt to collapse to peek
+      if (stage === 'expanded') {
+        showPeek()
+      }
+    }
+
+    // Reset ref for next gesture
+    touchStartYRef.current = null
+  }
+
   // Slow down expand/contract animations; keep faster timing when fully hiding
   const durationClass = stage === 'hidden' ? 'duration-300' : 'duration-500'
 
   if (isMobile) {
     return (
       <div
-        className={`md:hidden fixed bottom-0 left-0 right-0 border-t border-light flex flex-col overflow-hidden transition-transform ease-in-out ${durationClass} ${translateClass} ${heightClass}`}
+        className={`md:hidden fixed bottom-0 left-0 right-0 flex flex-col overflow-hidden transition-transform ease-in-out ${durationClass} ${translateClass} ${heightClass}`}
         onClick={(e) => {
           // Only handle clicks on the panel background, not on interactive elements
           if (e.target === e.currentTarget && stage === 'peek') {
@@ -572,12 +616,17 @@ export default function ContentPanel() {
               expandContentPanel()
             }
           }}
+
+          // Swipe support
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
         >
           <div className="w-8 h-[0.125rem] bg-light rounded-full"></div>
         </div>
 
         {/* Content area – make wrapper scrollable so content can scroll on mobile */}
         <div
+          ref={scrollContainerRef}
           className="content-scroll flex-1 bg-dark overflow-y-auto custom-scrollbar [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
           onClick={(e) => {
             // Prevent clicks on content from bubbling up to panel

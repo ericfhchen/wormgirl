@@ -41,6 +41,60 @@ export default function VideoPlayerStacked() {
   const isMobile = useIsMobile()
   const buttonDuration = pageState.contentPanelStage === 'hidden' ? 300 : 500
 
+  // ----- Dynamic offset for Next Chapter button relative to mobile module bar -----
+  const [barGap, setBarGap] = useState<number | null>(null)
+  const barObserverRef = useRef<ResizeObserver | null>(null)
+
+  useEffect(() => {
+    if (!isMobile) return
+
+    const updateGap = () => {
+      const barEl = document.getElementById('mobile-module-bar')
+      if (!barEl) return
+
+      const rect = barEl.getBoundingClientRect()
+      // Use the layout viewport height (window.innerHeight) instead of visualViewport.
+      // visualViewport shrinks when Safari UI appears, which causes mis-placement.
+      const viewportHeight = window.innerHeight
+      const offset = viewportHeight - rect.top // distance from bar top to viewport bottom
+      // Add extra 1rem (16px) spacing
+      setBarGap(offset + 16)
+    }
+
+    updateGap()
+
+    // Try multiple times during initial paint in case Safari UI is still adjusting
+    let attempts = 0
+    const intervalId = window.setInterval(() => {
+      updateGap()
+      attempts += 1
+      if (attempts >= 10) {
+        clearInterval(intervalId)
+      }
+    }, 150)
+
+    // Observe bar size changes directly
+    const barEl = document.getElementById('mobile-module-bar')
+    if (barEl && 'ResizeObserver' in window) {
+      barObserverRef.current = new ResizeObserver(updateGap)
+      barObserverRef.current.observe(barEl)
+    }
+
+    // Events that can affect the bar position / viewport height
+    window.addEventListener('resize', updateGap)
+    window.addEventListener('orientationchange', updateGap)
+    window.addEventListener('scroll', updateGap, true)
+
+    return () => {
+      clearInterval(intervalId)
+      window.removeEventListener('resize', updateGap)
+      window.removeEventListener('orientationchange', updateGap)
+      window.removeEventListener('scroll', updateGap, true)
+      barObserverRef.current?.disconnect()
+      barObserverRef.current = null
+    }
+  }, [isMobile])
+
   // Local debug toggle – press "d" to show/hide overlay
   const [showDebug, setShowDebug] = useState(false)
 
@@ -71,7 +125,7 @@ export default function VideoPlayerStacked() {
     setButtonVisible(false)
 
     // If the player is currently in idle mode, schedule the button to re-appear
-    if (videoState.isIdle) {
+    if (videoState.isIdle && pageState.contentPanelStage === 'expanded') {
       t = window.setTimeout(() => setButtonVisible(true), 1000)
     }
 
@@ -83,7 +137,7 @@ export default function VideoPlayerStacked() {
   // Still respond to idle mode toggles when module index remains unchanged
   useEffect(() => {
     let t: number | undefined
-    if (videoState.isIdle) {
+    if (videoState.isIdle && pageState.contentPanelStage === 'expanded') {
       t = window.setTimeout(() => setButtonVisible(true), 1000)
     } else {
       setButtonVisible(false)
@@ -92,6 +146,26 @@ export default function VideoPlayerStacked() {
       if (t) clearTimeout(t)
     }
   }, [videoState.isIdle])
+
+  // Show/hide button based on content panel expansion
+  useEffect(() => {
+    // If button isn't currently rendered or player not idle, nothing to do
+    if (!videoState.isIdle) return
+
+    let t: number | undefined
+
+    if (pageState.contentPanelStage === 'expanded') {
+      // Delay fade-in to match panel animation
+      t = window.setTimeout(() => setButtonVisible(true), 300)
+    } else {
+      // Hide instantly when panel collapses/peeks
+      setButtonVisible(false)
+    }
+
+    return () => {
+      if (t) clearTimeout(t)
+    }
+  }, [pageState.contentPanelStage])
 
   // Compute idle clip URL for current module (may be null)
   const idleUrl: string | null =
@@ -578,7 +652,7 @@ export default function VideoPlayerStacked() {
       )}
 
       {/* Next Chapter button (shown only during idle playback) */}
-      {currentIndex < modules.length - 1 && buttonVisible && (
+      {currentIndex < modules.length - 1 && (
         <button
           type="button"
           onClick={() => {
@@ -592,32 +666,24 @@ export default function VideoPlayerStacked() {
               setModulePage(currentIndex + 1, nextModule.slug.current)
             }
           }}
-          className="absolute bg-black text-light font-serif uppercase font-extrabold border-light border hover:bg-light hover:text-black transition-transform ease-in-out px-5 py-2 z-[9998]"
+          className="absolute bg-black text-light font-serif uppercase font-extrabold border-light border hover:bg-light hover:text-black transition-transform ease-in-out px-5 py-2 z-[9999]"
           style={{
             left: '50%',
-            // Keep 1 rem gap above the module bar (falls back to ~4 rem if the CSS variable isnʼt set yet)
-            ...(isMobile ? { bottom: 'calc(var(--mobile-module-bar-height, 64px) + 1rem)' } : { bottom: '1rem' }),
+            // Position 1 rem above the module bar
+            bottom: '1rem',
             transform: (() => {
-              const x = !isMobile && isContentPanelExpanded
+              // Center horizontally and, on desktop, shift left when content panel is open
+              const baseX = !isMobile && isContentPanelExpanded
                 ? 'translateX(calc(-50% - 192px))'
                 : 'translateX(-50%)'
 
-              if (!isMobile) return x
-
-              // Move vertically in tandem with the module barʼs own translation.
-              const y = pageState.contentPanelStage === 'expanded'
-                ? 'translateY(-70vh)'
-                : pageState.contentPanelStage === 'peek'
-                  ? 'translateY(-6rem)'
-                  : 'translateY(0)'
-
-              return `${x} ${y}`
+              return baseX
             })(),
             opacity: buttonVisible ? 1 : 0,
             transition: shouldFade
               ? 'none'
               : `transform ${buttonDuration}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${buttonDuration}ms cubic-bezier(0.4, 0, 0.2, 1)`,
-            pointerEvents: buttonVisible ? 'auto' : 'none'
+            pointerEvents: buttonVisible ? 'auto' : 'none',
           }}
         >
           Next Chapter

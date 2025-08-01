@@ -1,4 +1,5 @@
 import { useRef, useEffect, useMemo } from 'react'
+import useIsMobile from './useIsMobile'
 
 interface Footnote {
   id: string
@@ -9,6 +10,7 @@ interface Footnote {
 export function useFootnotes(footnotes: any[] = []) {
   // Track which footnote IDs have appeared in the rich-text so we can order definitions later.
   const footnoteRefsRef = useRef<Set<string>>(new Set())
+  const isMobile = useIsMobile()
   
   // Create numbered footnotes mapping
   const footnotesMap = useMemo(() => {
@@ -53,6 +55,7 @@ export function useFootnotes(footnotes: any[] = []) {
   
   // Scroll to footnote
   const scrollToFootnote = (footnoteId: string) => {
+    if (isMobile) return
     // Try immediately – if the target isn't mounted yet we'll retry on the next frame.
     const attemptScroll = (attempt = 0) => {
       const element = document.getElementById(`footnote-${footnoteId}`)
@@ -78,6 +81,7 @@ export function useFootnotes(footnotes: any[] = []) {
   
   // Scroll back to footnote reference
   const scrollToReference = (footnoteId: string) => {
+    if (isMobile) return
     const attemptScroll = (attempt = 0) => {
       const element = document.getElementById(`footnote-ref-${footnoteId}`)
       if (element) {

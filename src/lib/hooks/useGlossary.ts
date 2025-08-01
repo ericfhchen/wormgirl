@@ -1,4 +1,5 @@
 import { useRef, useEffect, useMemo } from 'react'
+import useIsMobile from './useIsMobile'
 
 interface GlossaryTerm {
   id: string
@@ -8,6 +9,7 @@ interface GlossaryTerm {
 
 export function useGlossary(glossaryTerms: any[] = []) {
   const glossaryRefsRef = useRef<Set<string>>(new Set())
+  const isMobile = useIsMobile()
   
   // Create glossary terms mapping
   const glossaryMap = useMemo(() => {
@@ -52,6 +54,7 @@ export function useGlossary(glossaryTerms: any[] = []) {
   
   // Scroll to glossary term
   const scrollToGlossaryTerm = (glossaryId: string) => {
+    if (isMobile) return
     const attemptScroll = (attempt = 0) => {
       const element = document.getElementById(`glossary-${glossaryId}`)
       if (element) {
@@ -75,6 +78,7 @@ export function useGlossary(glossaryTerms: any[] = []) {
   
   // Scroll back to glossary reference
   const scrollToGlossaryReference = (glossaryId: string) => {
+    if (isMobile) return
     const attemptScroll = (attempt = 0) => {
       const element = document.getElementById(`glossary-ref-${glossaryId}`)
       if (element) {

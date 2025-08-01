@@ -57,8 +57,6 @@ export default function MobileModuleBar() {
     }
   }
 
-  if (modulesState.loading) return null
-
   // Determine offset: when the content panel is peeking, move the bar up by the same amount (4rem).
   // When the panel is fully expanded we hide the bar off-screen so it doesn’t cover the panel.
   const barOffsetClass = (() => {
@@ -78,28 +76,67 @@ export default function MobileModuleBar() {
   // Match bar animation timing with content panel (slower when panel visible)
   const barDurationClass = pageState.contentPanelStage === 'hidden' ? 'duration-300' : 'duration-500'
 
-  // Update a CSS custom property so other components (e.g. Next Chapter button)
-  // can position themselves relative to the bar. Runs on mount & on resize/orientation
+  // Update CSS custom properties that expose the bar's height and its current
+  // offset from the bottom of the viewport so other components (like the
+  // Next Chapter button) can position themselves reliably.
   useLayoutEffect(() => {
-    const updateHeight = () => {
-      if (barRef.current) {
-        const h = barRef.current.offsetHeight || 0
-        document.documentElement.style.setProperty('--mobile-module-bar-height', `${h}px`)
+    const updateMetrics = () => {
+      const el = barRef.current
+      if (!el) return
+
+      const rect = el.getBoundingClientRect()
+
+      // Height rarely changes but keep it for completeness
+      document.documentElement.style.setProperty('--mobile-module-bar-height', `${rect.height}px`)
+
+      // Distance from viewport bottom to the bar *bottom* (i.e. including any
+      // translate-Y applied via Tailwind classes).
+      // Use layout viewport height so browser chrome doesnʼt shift the calculation
+      const viewportHeight = window.innerHeight
+      const offsetFromBottom = viewportHeight - rect.top
+      document.documentElement.style.setProperty('--mobile-module-bar-offset', `${offsetFromBottom}px`)
+    }
+
+    updateMetrics()
+
+          // Schedule extra measurements after initial load
+          setTimeout(updateMetrics, 0)
+          requestAnimationFrame(() => requestAnimationFrame(updateMetrics))
+          setTimeout(updateMetrics, 300)
+
+          window.addEventListener('resize', updateMetrics)
+      window.addEventListener('orientationchange', updateMetrics)
+      // Safari iOS hides/shows its browser chrome when scrolling which changes the viewport height
+      window.addEventListener('scroll', updateMetrics)
+
+    // Update again when the bar's slide animation completes so the offset reflects
+    // the final position (initial measurement can be early while the transition is in progress).
+    const el = barRef.current
+    const handleTransitionEnd = (e: TransitionEvent) => {
+      if (e.propertyName === 'transform') {
+        updateMetrics()
       }
     }
 
-    updateHeight()
-    window.addEventListener('resize', updateHeight)
-    window.addEventListener('orientationchange', updateHeight)
-    return () => {
-      window.removeEventListener('resize', updateHeight)
-      window.removeEventListener('orientationchange', updateHeight)
+    if (el) {
+      el.addEventListener('transitionend', handleTransitionEnd)
     }
-  }, [])
 
-  return (
+    return () => {
+      window.removeEventListener('resize', updateMetrics)
+      window.removeEventListener('orientationchange', updateMetrics)
+      window.removeEventListener('scroll', updateMetrics)
+
+      if (el) {
+        el.removeEventListener('transitionend', handleTransitionEnd)
+      }
+    }
+  }, [pageState.contentPanelStage, pageState.isTopMenuOpen])
+
+  return modulesState.loading ? null : (
     <div
       ref={barRef}
+      id="mobile-module-bar"
       className={`md:hidden fixed bottom-0 left-0 right-0 z-40 transition-transform ease-in-out ${barDurationClass} bg-dark ${barOffsetClass}`}
       onClick={() => {
         if (pageState.isTopMenuOpen) {
