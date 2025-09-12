@@ -1,5 +1,4 @@
 import { useRef, useEffect, useMemo } from 'react'
-import useIsMobile from './useIsMobile'
 
 interface Footnote {
   id: string
@@ -7,10 +6,9 @@ interface Footnote {
   number: number
 }
 
-export function useFootnotes(footnotes: any[] = []) {
+export function useFootnotes(footnotes: any[] = [], isMobile: boolean = false) {
   // Track which footnote IDs have appeared in the rich-text so we can order definitions later.
   const footnoteRefsRef = useRef<Set<string>>(new Set())
-  const isMobile = useIsMobile()
   
   // Create numbered footnotes mapping
   const footnotesMap = useMemo(() => {

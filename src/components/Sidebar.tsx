@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { useVideo } from '@/context/VideoContext'
 import { usePageState } from '@/context/PageStateContext'
 import { useModules } from '@/context/ModulesContext'
+import { useContentPages } from '@/context/ContentPagesContext'
+import { urlFor } from '@/lib/sanity'
 
 // Helper function to convert number to Roman numeral
 function toRomanNumeral(num: number): string {
@@ -29,13 +31,8 @@ export default function Sidebar() {
   const { state: videoState, playModule } = useVideo()
   const { state: pageState, setCurrentPage, setModulePage, expandContentPanel } = usePageState()
   const { state: modulesState } = useModules()
-
-  const contentPages = [
-    { slug: 'consulting', title: 'Consulting', pageType: 'consulting' as const },
-    { slug: 'stills', title: 'Stills', pageType: 'stills' as const },
-    { slug: 'installations', title: 'Installations', pageType: 'installations' as const },
-    { slug: 'about', title: 'About', pageType: 'about' as const },
-  ]
+  const { state: pagesState } = useContentPages()
+  const contentPages = pagesState.pages
 
   const handleModuleClick = (index: number, slug: string) => {
     console.log('🎯 Sidebar: Module clicked', { index, slug })
@@ -43,8 +40,8 @@ export default function Sidebar() {
     setModulePage(index, slug)
   }
 
-  const handleContentPageClick = (pageType: string, slug: string) => {
-    setCurrentPage(pageType as any, slug)
+  const handleContentPageClick = (slug: string) => {
+    setCurrentPage(slug)
   }
 
   return (
@@ -72,10 +69,37 @@ export default function Sidebar() {
                   <button
                     key={module._id}
                     onClick={() => handleModuleClick(index, module.slug.current)}
-                    className={`group w-full text-left p-0 transition-colors ${
+                    className={`relative group w-full text-left p-0 transition-colors ${
                       isActive ? 'bg-light text-dark' : 'hover:bg-light hover:text-primary'
                     }`}
                   >
+                    {/* Background SVG overlay for selected */}
+                    {isActive && module.tabImage && (
+                      <div
+                        className="absolute inset-0 pointer-events-none"
+                        style={{
+                          WebkitMaskImage: `url(${urlFor(module.tabImage).width(400).url()})`,
+                          maskImage: `url(${urlFor(module.tabImage).width(400).url()})`,
+                          WebkitMaskSize: 'cover',
+                          maskSize: 'cover',
+                          backgroundColor: 'var(--dark)'
+                        }}
+                      />
+                    )}
+
+                    {/* Background SVG overlay for hover */}
+                    {!isActive && module.tabImage && (
+                      <div
+                        className="absolute inset-0 pointer-events-none opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                        style={{
+                          WebkitMaskImage: `url(${urlFor(module.tabImage).width(400).url()})`,
+                          maskImage: `url(${urlFor(module.tabImage).width(400).url()})`,
+                          WebkitMaskSize: 'cover',
+                          maskSize: 'cover',
+                          backgroundColor: 'var(--dark)'
+                        }}
+                      />
+                    )}
                     <div className="flex flex-col p-3 pb-8 justify-start space-y-1 border-b border-light">
                       <div className={`w-6 h-6 justify-center text-xl font-serif font-bold ${
                         isActive ? 'text-dark' : 'text-light group-hover:text-dark'
@@ -96,26 +120,22 @@ export default function Sidebar() {
         {/* Bottom section with logo and content pages */}
         <div className="mt-auto">
           {/* Logo */}
-          <div className="p-2 pb-3">
+          <div className="px-2 py-3">
             <div className="flex justify-center">
               <img src="/WORMGIRL_TEXT_LOGO_FINAL.svg" alt="Worm Girl" className="" />
             </div>
           </div>
 
           {/* Content Pages */}
-          <div className="p-0 border-t border-light">
+          <div className="p-0 ">
             <div className="">
               {contentPages.map((page) => (
-                <button
-                  key={page.slug}
-                  onClick={() => handleContentPageClick(page.pageType, page.slug)}
-                  className={`w-full text-left px-3 py-2 transition-colors border-b border-light text-sm ${
-                    pageState.currentPage === page.pageType
-                      ? 'bg-light text-dark'
-                      : 'hover:bg-light hover:text-dark'
-                  }`}
-                >
-                  <p className="font-medium">{page.title}</p>
+                  <button
+                    key={page._id}
+                    onClick={() => handleContentPageClick(page.slug.current)}
+                    className={`group w-full text-left p-3 border-t border-light hover:bg-light hover:text-dark ${pageState.currentPage === 'content' && pageState.currentPageSlug === page.slug.current ? 'bg-light text-dark' : ''}`}
+                  >
+                  <p className="font-medium text-xs">{page.title}</p>
                 </button>
               ))}
             </div>

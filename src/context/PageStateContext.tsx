@@ -2,8 +2,8 @@
 
 import { createContext, useContext, useState, ReactNode } from 'react'
 
-// Types
-export type PageType = 'module' | 'consulting' | 'stills' | 'installations' | 'about'
+// Types  
+export type PageType = 'module' | 'content'
 
 // Panel can be fully hidden, showing just a small peek, or fully expanded
 type PanelStage = 'hidden' | 'peek' | 'expanded'
@@ -18,11 +18,14 @@ interface PageState {
 
   // Whether the top content menu (mobile) is open
   isTopMenuOpen: boolean
+
+  // Whether the content panel is maximized (affects layout width)
+  isPanelMaximized: boolean
 }
 
 interface PageStateContextType {
   state: PageState
-  setCurrentPage: (page: PageType, slug?: string) => void
+  setCurrentPage: (pageSlug: string) => void
   setModulePage: (moduleIndex: number, slug: string) => void
   toggleContentPanel: () => void
   expandContentPanel: () => void
@@ -32,6 +35,7 @@ interface PageStateContextType {
   openTopMenu: () => void
   closeTopMenu: () => void
   toggleTopMenu: () => void
+  setPanelMaximized: (maximized: boolean) => void
   isModulePage: boolean
   isContentPanelExpanded: boolean
 }
@@ -47,18 +51,19 @@ export function PageStateProvider({ children }: { children: ReactNode }) {
     previousModuleIndex: null,
     contentPanelStage: 'hidden',
     isTopMenuOpen: false,
+    isPanelMaximized: false,
   })
 
-  const setCurrentPage = (page: PageType, slug?: string) => {
+  const setCurrentPage = (pageSlug: string) => {
     setState(prev => ({
       ...prev,
-      currentPage: page,
-      currentPageSlug: slug || null,
+      currentPage: 'content',
+      currentPageSlug: pageSlug,
       // Preserve last module index so we can return to it later
-      previousModuleIndex: page !== 'module' && prev.currentPage === 'module'
+      previousModuleIndex: prev.currentPage === 'module'
         ? prev.previousModuleIndex
         : prev.previousModuleIndex,
-      // For non-module pages we open the panel fully so user can read immediately
+      // For content pages we open the panel fully so user can read immediately
       contentPanelStage: 'expanded',
     }))
   }
@@ -96,6 +101,11 @@ export function PageStateProvider({ children }: { children: ReactNode }) {
   const closeTopMenu = () => setState(prev => ({ ...prev, isTopMenuOpen: false }))
   const toggleTopMenu = () => setState(prev => ({ ...prev, isTopMenuOpen: !prev.isTopMenuOpen }))
 
+  // ---- Panel maximized helpers ---- //
+  const setPanelMaximized = (maximized: boolean) => {
+    setState(prev => ({ ...prev, isPanelMaximized: maximized }))
+  }
+
   const isModulePage = state.currentPage === 'module'
 
   // Derived value used by existing desktop components
@@ -115,6 +125,7 @@ export function PageStateProvider({ children }: { children: ReactNode }) {
     openTopMenu,
     closeTopMenu,
     toggleTopMenu,
+    setPanelMaximized,
 
     isModulePage,
     isContentPanelExpanded,

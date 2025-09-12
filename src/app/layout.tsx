@@ -5,6 +5,7 @@ import React from 'react'
 import { VideoProvider } from '@/context/VideoContext'
 import { PageStateProvider } from '@/context/PageStateContext'
 import { ModulesProvider } from '@/context/ModulesContext'
+import { ContentPagesProvider } from '@/context/ContentPagesContext'
 import { usePageState } from '@/context/PageStateContext'
 import VideoPlayerStacked from '@/components/VideoPlayerStacked'
 import IntroOverlay from '@/components/IntroOverlay'
@@ -35,16 +36,18 @@ export default function RootLayout({
     <html lang="en">
       <body className="font-sans overflow-hidden">
         <PreLoader />
-        <ModulesProvider>
-          <VideoProvider>
-            <PageStateProvider>
-              <LayoutContent>
-                {children}
-              </LayoutContent>
-              {!introDone && <IntroOverlay onFinish={handleIntroFinish} />}
-            </PageStateProvider>
-          </VideoProvider>
-        </ModulesProvider>
+        <ContentPagesProvider>
+          <ModulesProvider>
+            <VideoProvider>
+              <PageStateProvider>
+                <LayoutContent>
+                  {children}
+                </LayoutContent>
+                {!introDone && <IntroOverlay onFinish={handleIntroFinish} />}
+              </PageStateProvider>
+            </VideoProvider>
+          </ModulesProvider>
+        </ContentPagesProvider>
       </body>
     </html>
   )
@@ -55,6 +58,13 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const isPanelVisibleDesktop = pageState.contentPanelStage !== 'hidden'
   const { state: modulesState } = useModules()
   const { state: videoState, dispatch: videoDispatch } = useVideo()
+
+  // Calculate sidebar position based on panel size
+  const getSidebarRightPosition = () => {
+    if (!isPanelVisibleDesktop) return '0px'
+    // Use 80vw when maximized, otherwise 384px (w-96)
+    return pageState.isPanelMaximized ? '80vw' : '384px'
+  }
 
   // No automatic Prelude start – handled by user click
 
@@ -76,25 +86,19 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
       <aside 
         className="hidden md:block absolute top-0 h-full border-l border-light overflow-hidden z-20 bg-dark/95 backdrop-blur-sm w-sidebar" 
         style={{ 
-          right: isPanelVisibleDesktop ? '384px' : '0px',
-          transition: 'right 0.4s ease-in-out'
+          right: getSidebarRightPosition(),
+          transition: 'right 0.3s ease-in-out'
         }}
       >
         <Sidebar />
       </aside>
 
-      {/* Desktop Content Panel */}
-      <div className="hidden md:block absolute top-0 right-0 h-full z-30">
-        <ContentPanel />
-      </div>
+      {/* Content Panel - single instance handles both mobile and desktop */}
+      <ContentPanel />
 
       {/* Mobile UI */}
       <MobileTopMenu />
       <MobileModuleBar />
-      <div className="md:hidden absolute inset-0 z-30">
-        {/* Reuse ContentPanel for mobile as well (it adapts via CSS) */}
-        <ContentPanel />
-      </div>
     </div>
   )
 } 

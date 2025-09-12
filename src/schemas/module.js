@@ -148,6 +148,16 @@ export default {
         }
       ],
       description: 'Define footnotes that can be referenced in the article content'
+    },
+    {
+      name: 'tabImage',
+      title: 'Tab Image',
+      type: 'image',
+      description: 'Background image shown on module tab in colour (hover) and black (active). Upload an image (PNG, JPG, or SVG). Use the crop tool to frame the portion that should appear on the tab.',
+      options: {
+        hotspot: true,
+        // Accept any common image format
+      }
     }
   ],
   preview: {

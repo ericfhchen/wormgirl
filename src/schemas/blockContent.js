@@ -86,7 +86,15 @@ export default {
       }
     },
     {
-      type: 'image'
+      type: 'image',
+      fields: [
+        {
+          name: 'caption',
+          title: 'Caption',
+          type: 'string',
+          description: 'Optional caption that will appear below the image'
+        }
+      ]
     },
     {
       title: 'Inline Video',
@@ -104,6 +112,48 @@ export default {
           type: 'string'
         }
       ]
+    },
+    {
+      title: 'Spotify Embed',
+      name: 'spotifyEmbed',
+      type: 'object',
+      fields: [
+        {
+          title: 'Spotify URL',
+          name: 'url',
+          type: 'url',
+          description: 'Full Spotify URL (e.g., https://open.spotify.com/playlist/37i9dQZF1DX0XUsuxWHRQd)',
+          validation: Rule => Rule.required().uri({
+            allowRelative: false,
+            scheme: ['https']
+          }).custom((url) => {
+            if (url && !url.includes('spotify.com')) {
+              return 'Must be a Spotify URL'
+            }
+            return true
+          })
+        },
+        {
+          title: 'Height',
+          name: 'height',
+          type: 'number',
+          description: 'Height of the embed in pixels (default: 380)',
+          initialValue: 380,
+          validation: Rule => Rule.min(200).max(800)
+        }
+      ],
+      preview: {
+        select: {
+          url: 'url'
+        },
+        prepare(selection) {
+          const { url } = selection
+          return {
+            title: 'Spotify Embed',
+            subtitle: url || 'No URL set'
+          }
+        }
+      }
     }
   ]
 } 

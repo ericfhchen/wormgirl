@@ -25,10 +25,8 @@ export default {
       type: 'string',
       options: {
         list: [
-          { title: 'Consulting', value: 'consulting' },
           { title: 'Stills', value: 'stills' },
-          { title: 'Installations', value: 'installations' },
-          { title: 'About', value: 'about' }
+          { title: 'Text', value: 'text' }
         ]
       },
       validation: Rule => Rule.required()

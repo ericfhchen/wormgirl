@@ -1,5 +1,4 @@
 import { useRef, useEffect, useMemo } from 'react'
-import useIsMobile from './useIsMobile'
 
 interface GlossaryTerm {
   id: string
@@ -7,9 +6,8 @@ interface GlossaryTerm {
   definition: any[] // Portable text content
 }
 
-export function useGlossary(glossaryTerms: any[] = []) {
+export function useGlossary(glossaryTerms: any[] = [], isMobile: boolean = false) {
   const glossaryRefsRef = useRef<Set<string>>(new Set())
-  const isMobile = useIsMobile()
   
   // Create glossary terms mapping
   const glossaryMap = useMemo(() => {

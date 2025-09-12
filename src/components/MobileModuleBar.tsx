@@ -4,6 +4,7 @@ import { useModules } from '@/context/ModulesContext'
 import { useVideo } from '@/context/VideoContext'
 import { usePageState } from '@/context/PageStateContext'
 import React, { useRef, useLayoutEffect } from 'react'
+import { urlFor } from '@/lib/sanity'
 
 // Helper function to convert number to Roman numeral
 function toRomanNumeral(num: number): string {
@@ -34,6 +35,7 @@ export default function MobileModuleBar() {
     state: pageState,
     closeTopMenu,
     setModulePage,
+    collapseContentPanel,
   } = usePageState()
 
   const handleModuleClick = (
@@ -41,8 +43,12 @@ export default function MobileModuleBar() {
     index: number,
     slug: string
   ) => {
-    // If top menu open, close it first
+    // If top menu open, close it first and collapse content panel if needed
     if (pageState.isTopMenuOpen) {
+      // When closing top menu, also collapse the bottom content panel if it's showing content
+      if (pageState.currentPage === 'content' && pageState.contentPanelStage !== 'hidden') {
+        collapseContentPanel()
+      }
       closeTopMenu()
     }
     playModule(index)
@@ -68,9 +74,9 @@ export default function MobileModuleBar() {
     return ''
   })()
 
-  // Dim and disable only when the top menu itself is open
+  // Dim when the top menu is open, but keep clickable
   const disabledStyle = pageState.isTopMenuOpen
-    ? 'pointer-events-none opacity-40'
+    ? 'opacity-40'
     : ''
 
   // Match bar animation timing with content panel (slower when panel visible)
@@ -140,6 +146,10 @@ export default function MobileModuleBar() {
       className={`md:hidden fixed bottom-0 left-0 right-0 z-40 transition-transform ease-in-out ${barDurationClass} bg-dark ${barOffsetClass}`}
       onClick={() => {
         if (pageState.isTopMenuOpen) {
+          // When closing top menu, also collapse the bottom content panel if it's showing content
+          if (pageState.currentPage === 'content' && pageState.contentPanelStage !== 'hidden') {
+            collapseContentPanel()
+          }
           closeTopMenu()
         }
       }}
@@ -164,10 +174,37 @@ export default function MobileModuleBar() {
             <button
               key={module._id}
               onClick={(e) => handleModuleClick(e, index, module.slug.current)}
-              className={`group flex-shrink-0 w-44 snap-start text-left p-0 transition-colors ${
+              className={`relative group flex-shrink-0 w-44 snap-start text-left p-0 transition-colors ${
                 isActive ? 'bg-light text-dark' : 'hover:bg-light hover:text-primary'
               } ${borderClasses}`}
             >
+              {/* Background SVG overlay for selected state */}
+              {isActive && module.tabImage && (
+                <div
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    WebkitMaskImage: `url(${urlFor(module.tabImage).width(400).url()})`,
+                    maskImage: `url(${urlFor(module.tabImage).width(400).url()})`,
+                    WebkitMaskSize: 'cover',
+                    maskSize: 'cover',
+                    backgroundColor: 'var(--dark)',
+                  }}
+                />
+              )}
+
+              {/* Background SVG overlay for hover state */}
+              {!isActive && module.tabImage && (
+                <div
+                  className="absolute inset-0 pointer-events-none opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                  style={{
+                    WebkitMaskImage: `url(${urlFor(module.tabImage).width(400).url()})`,
+                    maskImage: `url(${urlFor(module.tabImage).width(400).url()})`,
+                    WebkitMaskSize: 'cover',
+                    maskSize: 'cover',
+                    backgroundColor: 'var(--dark)',
+                  }}
+                />
+              )}
               <div className="flex flex-col h-full p-3 pb-8 justify-start">
                 <div
                   className={`w-6 h-6 mb-1 text-lg font-serif font-bold ${

@@ -9,6 +9,12 @@ export default {
       type: 'string'
     },
     {
+      name: 'icon',
+      title: 'Section Icon',
+      type: 'image',
+      description: 'Icon to display next to the section title in tabs (SVG or PNG recommended)'
+    },
+    {
       name: 'categories',
       title: 'Categories',
       type: 'array',

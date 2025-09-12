@@ -51,6 +51,13 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
             idleVideo {
               asset->
             },
+            tabImage {
+              asset-> {
+                url
+              },
+              crop,
+              hotspot
+            },
             body,
             glossary[] {
               id,

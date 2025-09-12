@@ -50,6 +50,13 @@ export interface SanityModule {
     content: any[]
   }>
   excerpt?: string
+  tabImage?: {
+    asset: {
+      url: string
+    },
+    crop?: any,
+    hotspot?: any
+  }
 }
 
 export interface SanityContentPage {
@@ -64,6 +71,7 @@ export interface SanityContentPage {
 export interface SanityCategorySection {
   _type: 'categorySection'
   title?: string
+  icon?: SanityImageSource
   categories: {
     title: string
     description?: string
@@ -74,6 +82,7 @@ export interface SanityCategorySection {
 export interface SanityImageGallerySection {
   _type: 'imageGallerySection'
   title?: string
+  icon?: SanityImageSource
   images: {
     image: SanityImageSource
     caption?: string
@@ -83,6 +92,8 @@ export interface SanityImageGallerySection {
 
 export interface SanityTextBlock {
   _type: 'textBlock'
+  title?: string
+  icon?: SanityImageSource
   content: any[] // Portable Text blocks
 }
 
@@ -94,6 +105,13 @@ export const MODULES_QUERY = `
     slug,
     order,
     timeline,
+    tabImage {
+      asset-> {
+        url
+      },
+      crop,
+      hotspot
+    },
     video {
       asset-> {
         playbackId,
@@ -127,6 +145,13 @@ export const MODULE_BY_SLUG_QUERY = `
     slug,
     order,
     timeline,
+    tabImage {
+      asset-> {
+        url
+      },
+      crop,
+      hotspot
+    },
     video {
       asset-> {
         playbackId,
@@ -163,6 +188,9 @@ export const CONTENT_PAGES_QUERY = `
       _type,
       _type == "categorySection" => {
         title,
+        icon {
+          asset->
+        },
         categories[] {
           title,
           description,
@@ -173,6 +201,9 @@ export const CONTENT_PAGES_QUERY = `
       },
       _type == "imageGallerySection" => {
         title,
+        icon {
+          asset->
+        },
         images[] {
           image {
             asset->
@@ -182,6 +213,10 @@ export const CONTENT_PAGES_QUERY = `
         }
       },
       _type == "textBlock" => {
+        title,
+        icon {
+          asset->
+        },
         content
       }
     }
@@ -198,6 +233,9 @@ export const CONTENT_PAGE_BY_SLUG_QUERY = `
       _type,
       _type == "categorySection" => {
         title,
+        icon {
+          asset->
+        },
         categories[] {
           title,
           description,
@@ -208,6 +246,9 @@ export const CONTENT_PAGE_BY_SLUG_QUERY = `
       },
       _type == "imageGallerySection" => {
         title,
+        icon {
+          asset->
+        },
         images[] {
           image {
             asset->
@@ -217,6 +258,10 @@ export const CONTENT_PAGE_BY_SLUG_QUERY = `
         }
       },
       _type == "textBlock" => {
+        title,
+        icon {
+          asset->
+        },
         content
       }
     }
@@ -237,7 +282,14 @@ export async function getModules(): Promise<SanityModule[]> {
       body,
       glossary,
       footnotes,
-      excerpt
+      excerpt,
+      tabImage {
+        asset {
+          url
+        },
+        crop,
+        hotspot
+      }
     }
   `)
 }

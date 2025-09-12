@@ -5,17 +5,19 @@ import { PortableText, type PortableTextReactComponents } from '@portabletext/re
 import { usePageState } from '@/context/PageStateContext'
 import { useVideo } from '@/context/VideoContext'
 import { useModules } from '@/context/ModulesContext'
-import { urlFor } from '@/lib/sanity'
+import { useContentPages } from '@/context/ContentPagesContext'
+import { urlFor, type SanityCategorySection, type SanityImageGallerySection, type SanityTextBlock } from '@/lib/sanity'
 import { useFootnotes } from '@/lib/hooks/useFootnotes'
 import { useGlossary } from '@/lib/hooks/useGlossary'
 import useIsMobile from '@/lib/hooks/useIsMobile'
 import Image from 'next/image'
 
 export default function ContentPanel() {
-  const { state: pageState, toggleContentPanel, isContentPanelExpanded, expandContentPanel, showPeek } = usePageState()
+  const { state: pageState, toggleContentPanel, isContentPanelExpanded, expandContentPanel, showPeek, setPanelMaximized } = usePageState()
   const isMobile = useIsMobile()
   const { state: videoState } = useVideo()
   const { state: modulesState, getModule } = useModules()
+  const { state: contentPagesState, getPageByType, getPageBySlug } = useContentPages()
   
   // Current panel stage
   const stage = pageState.contentPanelStage
@@ -26,6 +28,12 @@ export default function ContentPanel() {
   // Handle instant hide + delayed fade-in when module content changes
   const [isHidden, setIsHidden] = useState(false)
   const [shouldFadeIn, setShouldFadeIn] = useState(false)
+
+  // State for vertical tabs (used in stills page)
+  const [activeTabIndex, setActiveTabIndex] = useState(0)
+  
+  // State for stills gallery view modes
+  const [galleryViewMode, setGalleryViewMode] = useState<'tabs' | 'expanded' | 'maximized'>('tabs')
 
   const prevContentKeyRef = useRef(contentKey)
   const prevStageRef = useRef(stage)
@@ -106,6 +114,10 @@ export default function ContentPanel() {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({ top: 0 })
     }
+    // Reset active tab index and gallery view mode when page changes
+    setActiveTabIndex(0)
+    setGalleryViewMode('tabs')
+    setPanelMaximized(false)
   }, [selectedModuleIndex, pageState.currentPage])
 
   // Get current module from centralized context
@@ -114,23 +126,26 @@ export default function ContentPanel() {
   const currentModule = useMemo(() => rawModule, [rawModule?._id])
 
   // Memoize footnotes to prevent new array creation on every render
+  // Always provide an empty array to ensure hooks are called consistently
   const footnotes = useMemo(() => {
-    return currentModule?.footnotes || []
-  }, [currentModule?.footnotes])
+    return (pageState.currentPage === 'module' && currentModule?.footnotes) ? currentModule.footnotes : []
+  }, [pageState.currentPage, currentModule?.footnotes])
 
   // Memoize glossary terms to prevent new array creation on every render
+  // Always provide an empty array to ensure hooks are called consistently
   const glossaryTerms = useMemo(() => {
-    return currentModule?.glossary || []
-  }, [currentModule?.glossary])
+    return (pageState.currentPage === 'module' && currentModule?.glossary) ? currentModule.glossary : []
+  }, [pageState.currentPage, currentModule?.glossary])
 
   // ----- Footnotes / glossary hooks -----
+  // Always call these hooks with consistent parameters
   const {
     registerFootnoteRef,
     getReferencedFootnotes,
     scrollToFootnote,
     scrollToReference,
     footnotesMap
-  } = useFootnotes(footnotes)
+  } = useFootnotes(footnotes, isMobile)
 
   const {
     registerGlossaryRef,
@@ -138,16 +153,17 @@ export default function ContentPanel() {
     scrollToGlossaryTerm,
     scrollToGlossaryReference,
     glossaryMap
-  } = useGlossary(glossaryTerms)
+  } = useGlossary(glossaryTerms, isMobile)
 
   // Force a re-render after refs are collected so the definition lists mount
   const [refsVersion, setRefsVersion] = useState(0)
 
   // ------------------------------------------------------------
   // Register footnotes and glossary references after render
+  // Only process on module pages to avoid processing null content
   // ------------------------------------------------------------
   useEffect(() => {
-    if (currentModule?.body) {
+    if (pageState.currentPage === 'module' && currentModule?.body) {
       const walkContent = (content: any[]) => {
         content.forEach(item => {
           if (item._type === 'block' && item.markDefs) {
@@ -170,7 +186,7 @@ export default function ContentPanel() {
       // refs collected → trigger one re-render to show definitions
       setRefsVersion(v => v + 1)
     }
-  }, [currentModule?.body]) // Remove registration functions from dependencies
+  }, [pageState.currentPage, currentModule?.body]) // Remove registration functions from dependencies
 
   // Memoize referenced terms to prevent unnecessary re-renders
   const referencedGlossaryTerms = useMemo(
@@ -270,19 +286,39 @@ export default function ContentPanel() {
         const displayH = Math.round(displayW * origH / origW)
         
         return (
-          <div className="my-4">
+          <div className="mt-6 mb-6">
             <img
               src={urlFor(value).width(displayW).quality(80).url()}
               alt={value.alt || ''}
-              width={origW}
-              height={origH}
-              className="w-full h-auto rounded-lg"
+              className="w-full h-auto block"
               loading="lazy"
-              style={{ aspectRatio: `${origW}/${origH}` }}
+              style={{ aspectRatio: `${origW}/${origH}`, margin: 0, padding: 0 }}
             />
             {value.caption && (
-              <p className="text-xs text-muted mt-2 text-center">{value.caption}</p>
+              <p className="text-xs italic mt-2 text-light" style={{fontFamily: 'Times Now'}}>{value.caption}</p>
             )}
+          </div>
+        )
+      },
+      spotifyEmbed: ({ value }: { value: { url: string; height?: number } }) => {
+        if (!value?.url) return null
+
+        // Convert Spotify URL to embed URL
+        const embedUrl = value.url.replace('open.spotify.com/', 'open.spotify.com/embed/')
+        const height = value.height || 380
+
+        return (
+          <div className="my-8">
+            <iframe 
+              src={embedUrl}
+              width="100%"
+              height={height}
+              frameBorder="0"
+              allowTransparency={true}
+              allow="encrypted-media"
+              loading="lazy"
+              className="rounded-lg"
+            />
           </div>
         )
       },
@@ -301,24 +337,97 @@ export default function ContentPanel() {
     return null
   }, [currentModule?._id, portableTextComponents])
 
-  const mockContentPageData = {
-    consulting: {
-      title: "Consulting Services",
-      content: "Professional consulting services for your business needs."
-    },
-    stills: {
-      title: "Photography Portfolio",
-      content: "A curated collection of still photography work."
-    },
-    installations: {
-      title: "Art Installations",
-      content: "Interactive and immersive art installations."
-    },
-    about: {
-      title: "About Us",
-      content: "Learn more about our mission and team."
-    }
-  }
+  // Section rendering functions
+  const renderCategorySection = (section: SanityCategorySection) => (
+    <section key={`category-${section.title || 'untitled'}`} className="space-y-4">
+      {section.title && (
+        <h2 className="text-lg font-semibold mb-3 text-light">{section.title}</h2>
+      )}
+      <div className="grid grid-cols-1 gap-4">
+        {section.categories?.map((category, index) => (
+          <div key={`category-${index}`} className="p-4 border border-light rounded-lg">
+            {category.image && (
+              <div className="w-full h-24 bg-dark rounded-lg mb-3 overflow-hidden">
+                <img
+                  src={urlFor(category.image).width(400).height(200).quality(80).url()}
+                  alt={category.title || ''}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              </div>
+            )}
+            <h3 className="font-medium mb-1 text-sm text-light">{category.title}</h3>
+            {category.description && (
+              <p className="text-xs text-muted">{category.description}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+
+  const renderImageGallerySection = (section: SanityImageGallerySection) => (
+    <section key={`gallery-${section.title || 'untitled'}`} className="space-y-4">
+      
+      <div className="space-y-24">
+        {section.images?.map((imageItem, index) => {
+          // Get dimensions from image asset if available
+          let origW: number | undefined
+          let origH: number | undefined
+
+          // Handle different possible structures of the image asset
+          if (typeof imageItem.image === 'object' && imageItem.image && 'asset' in imageItem.image) {
+            const imageAsset = imageItem.image.asset as any
+            origW = imageAsset?.metadata?.dimensions?.width
+            origH = imageAsset?.metadata?.dimensions?.height
+
+            // If no metadata dimensions, try to parse from asset _ref
+            if (!origW || !origH) {
+              const ref = imageAsset?._ref
+              const match = ref?.match(/-(\d+)x(\d+)-/)
+              if (match) {
+                origW = parseInt(match[1], 10)
+                origH = parseInt(match[2], 10)
+              }
+            }
+          }
+
+          // Use sensible defaults if dimensions can't be determined
+          origW = origW || 800
+          origH = origH || 600
+
+          return (
+            <div key={`image-${index}`} className="space-y-2">
+              <img
+                src={urlFor(imageItem.image).width(800).quality(80).url()}
+                alt={imageItem.alt || imageItem.caption || ''}
+                width={origW}
+                height={origH}
+                className="w-full h-auto"
+                loading="lazy"
+                style={{ aspectRatio: `${origW}/${origH}` }}
+              />
+              {imageItem.caption && (
+                <p className="text-xs italic text-light" style={{ fontFamily: 'Times Now' }}>
+                  {imageItem.caption}
+                </p>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+
+  const renderTextBlockSection = (section: SanityTextBlock) => (
+    <section key={`text-${Math.random()}`} className="prose-custom">
+      <PortableText 
+        value={section.content} 
+        components={portableTextComponents} 
+      />
+    </section>
+  )
+
 
   const renderModuleContent = () => {
     if (modulesState.loading) {
@@ -493,58 +602,181 @@ export default function ContentPanel() {
   }
 
   const renderContentPage = () => {
-    const currentPageData = mockContentPageData[pageState.currentPage as keyof typeof mockContentPageData]
-    
-    if (!currentPageData) return null
+    if (contentPagesState.loading) {
+      return (
+        <div className="p-6">
+          <div className="text-center text-muted">
+            Loading page content...
+          </div>
+        </div>
+      )
+    }
 
+    const currentPageData = pageState.currentPageSlug 
+      ? getPageBySlug(pageState.currentPageSlug)
+      : null
+    
+    if (!currentPageData) {
+      return (
+        <div className="p-6">
+          <div className="text-center text-muted">
+            <p className="text-sm">Page not found</p>
+            <p className="text-xs mt-2">No content available for {pageState.currentPageSlug}</p>
+          </div>
+        </div>
+      )
+    }
+
+    // Special handling for stills page with vertical tabs and expandable gallery
+    if (currentPageData?.pageType === 'stills' && currentPageData.sections?.length > 0) {
+      // Show vertical tabs in collapsed view
+      if (galleryViewMode === 'tabs') {
+        return (
+          <div className="flex flex-col h-full">
+            {/* Vertical Tabs - takes full space when in tabs mode */}
+            <div className="flex-1 flex flex-col">
+              {currentPageData.sections.map((section, index) => {
+                const sectionTitle = section.title || `Section ${index + 1}`
+                
+                return (
+                  <button
+                    key={`tab-${index}`}
+                    onClick={() => {
+                      setActiveTabIndex(index)
+                      setGalleryViewMode('expanded')
+                    }}
+                    className="flex items-center px-6 py-10 gap-2 text-left border-b border-light hover:bg-dark/30 transition-all"
+                  >
+                    {section.icon && (
+                      <div className="flex-shrink-0 w-16 h-full mr-4 flex items-center">
+                        <Image
+                          src={urlFor(section.icon).url()}
+                          alt=""
+                          width={48}
+                          height={48}
+                          className="object-contain max-h-full w-auto"
+                        />
+                      </div>
+                    )}
+                    <h3 className="text-light font-medium text-xl text-base">{sectionTitle}</h3>
+                    
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )
+      }
+
+      // Show expanded gallery content
+      if (galleryViewMode === 'expanded' || galleryViewMode === 'maximized') {
+        const activeSection = currentPageData.sections[activeTabIndex]
+        const sectionTitle = activeSection?.title || `Section ${activeTabIndex + 1}`
+
+        return (
+          <div className="flex flex-col h-full">
+            {/* Gallery Header with Controls */}
+            <div className="flex items-center justify-between p-4">
+              <div className="flex items-center">
+                <button
+                  onClick={() => setGalleryViewMode('tabs')}
+                  className="p-2 hover:bg-dark/50 rounded transition-colors mr-3"
+                  aria-label="Back to sections"
+                >
+                  <svg className="w-4 h-4 text-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                {/* <h2 className="text-light font-medium text-lg">{sectionTitle}</h2> */}
+              </div>
+              
+              <button
+                onClick={() => {
+                  if (galleryViewMode === 'maximized') {
+                    setGalleryViewMode('expanded')
+                    setPanelMaximized(false)
+                  } else {
+                    setGalleryViewMode('maximized')
+                    setPanelMaximized(true)
+                  }
+                }}
+                className="p-2 hover:bg-dark/50 rounded transition-colors"
+                aria-label={galleryViewMode === 'maximized' ? 'Minimize' : 'Maximize'}
+              >
+                {galleryViewMode === 'maximized' ? (
+                  <svg className="w-4 h-4 text-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9l6 6m0-6l-6 6m12-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4 text-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                  </svg>
+                )}
+              </button>
+            </div>
+
+            {/* Gallery Content */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
+              {activeSection && (() => {
+                switch (activeSection._type) {
+                  case 'categorySection':
+                    return renderCategorySection(activeSection as SanityCategorySection)
+                  case 'imageGallerySection':
+                    return renderImageGallerySection(activeSection as SanityImageGallerySection)
+                  case 'textBlock':
+                    return renderTextBlockSection(activeSection as SanityTextBlock)
+                  default:
+                    return (
+                      <div className="text-muted">
+                        <p className="text-sm">Unsupported section type: {activeSection._type}</p>
+                      </div>
+                    )
+                }
+              })()}
+            </div>
+          </div>
+        )
+      }
+    }
+
+    // Default rendering for other pages (consulting, installations, about)
     return (
-      <div className="p-6">
+      <div className="p-4 pb-24 md:pb-16">
         <div className="max-w-none">
           
-          <header className="mb-6">
-            <h1 className="text-2xl font-bold text-light mb-2">
-              {currentPageData.title}
-            </h1>
-            <p className="text-muted text-sm">
-              Flexible content page with modular sections
-            </p>
-          </header>
 
-          <div className="space-y-6">
-            {/* Mock Category Section */}
-            <section>
-              <h2 className="text-lg font-semibold mb-3">Categories</h2>
-              <div className="grid grid-cols-1 gap-4">
-                {[1, 2, 3].map((item) => (
-                  <div key={item} className="p-4 border border-light rounded-lg">
-                    <div className="w-full h-24 bg-dark rounded-lg mb-3"></div>
-                    <h3 className="font-medium mb-1 text-sm">Category {item}</h3>
-                    <p className="text-xs text-muted">
-                      Description of this category and its relevance.
-                    </p>
-                  </div>
-                ))}
+
+          <div className="space-y-8">
+            {currentPageData.sections?.length > 0 ? (
+              currentPageData.sections.map((section, index) => {
+                switch (section._type) {
+                  case 'categorySection':
+                    return renderCategorySection(section as SanityCategorySection)
+                  case 'imageGallerySection':
+                    return renderImageGallerySection(section as SanityImageGallerySection)
+                  case 'textBlock':
+                    return renderTextBlockSection(section as SanityTextBlock)
+                  default:
+                    return (
+                      <div key={`unknown-${index}`} className="text-muted">
+                        <p className="text-sm">Unsupported section type: {section._type}</p>
+                      </div>
+                    )
+                }
+              })
+            ) : (
+              <div className="text-center text-muted">
+                <p className="text-sm">No content sections available</p>
+                <p className="text-xs mt-2">Add sections to this page in the Sanity Studio</p>
               </div>
-            </section>
-
-            {/* Mock Text Block */}
-            <section className="prose-custom">
-              <h3 className="text-base font-semibold mb-2">About This Page</h3>
-              <p className="text-sm mb-3">{currentPageData.content}</p>
-              <p className="text-sm mb-2">
-                This page demonstrates the flexible content system using Sanity&apos;s 
-                modular sections.
-              </p>
-            </section>
+            )}
           </div>
         </div>
       </div>
     )
   }
 
-  if (!isVisible) {
-    return null
-  }
+  // Handle visibility through CSS instead of early returns to maintain consistent hook calls
 
   // ---- Mobile rendering ---- //
   const translateClass = stage === 'hidden'
@@ -592,87 +824,137 @@ export default function ContentPanel() {
   // Slow down expand/contract animations; keep faster timing when fully hiding
   const durationClass = stage === 'hidden' ? 'duration-300' : 'duration-500'
 
-  if (isMobile) {
-    return (
-      <div
-        className={`md:hidden fixed bottom-0 left-0 right-0 flex flex-col overflow-hidden transition-transform ease-in-out ${durationClass} ${translateClass} ${heightClass}`}
-        onClick={(e) => {
-          // Only handle clicks on the panel background, not on interactive elements
-          if (e.target === e.currentTarget && stage === 'peek') {
-            expandContentPanel()
-          }
-        }}
-      >
-        {/* Small grab bar / header */}
+  // ---- Mobile rendering ---- //
+  // Get current page data for content pages
+  const currentPageData = pageState.currentPage === 'content' && pageState.currentPageSlug 
+    ? getPageBySlug(pageState.currentPageSlug)
+    : null
+
+  // Handle clicks outside panel to minimize when maximized (desktop only)
+  useEffect(() => {
+    if (isMobile) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (galleryViewMode === 'maximized' && currentPageData?.pageType === 'stills') {
+        setGalleryViewMode('expanded')
+        setPanelMaximized(false)
+      }
+    }
+
+    if (galleryViewMode === 'maximized') {
+      document.addEventListener('click', handleClickOutside)
+      return () => document.removeEventListener('click', handleClickOutside)
+    }
+  }, [galleryViewMode, currentPageData?.pageType, setPanelMaximized, isMobile])
+
+  // Determine panel width based on maximized state
+  const panelWidthClass = galleryViewMode === 'maximized' ? 'w-[80vw]' : 'w-96'
+
+  return (
+    <>
+      {/* Mobile Panel */}
+      {isMobile && (
         <div
-          className="flex absolute top-0 items-center justify-center h-8 w-full cursor-pointer z-50"
+          className={`fixed bottom-0 left-0 right-0 flex flex-col overflow-hidden transition-transform ease-in-out z-30 ${durationClass} ${translateClass} ${heightClass}`}
+          style={{ display: isVisible ? 'flex' : 'none' }}
           onClick={(e) => {
-            e.stopPropagation()
-            if (stage === 'expanded') {
-              // Collapse to peek
-              showPeek()
-            } else if (stage === 'peek') {
-              // Expand fully
+            // Only handle clicks on the panel background, not on interactive elements
+            if (e.target === e.currentTarget && stage === 'peek') {
               expandContentPanel()
             }
           }}
-
-          // Swipe support
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
         >
-          <div className="w-8 h-[0.125rem] bg-light rounded-full"></div>
-        </div>
-
-        {/* Content area – make wrapper scrollable so content can scroll on mobile */}
-        <div
-          ref={scrollContainerRef}
-          className="content-scroll flex-1 bg-dark overflow-y-auto custom-scrollbar [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-          onClick={(e) => {
-            // Prevent clicks on content from bubbling up to panel
-            e.stopPropagation()
-          }}
-        >
+          {/* Small grab bar / header */}
           <div
-            className={`pt-4 ${
-              isHidden
-                ? 'opacity-0 pointer-events-none transition-none'
-                : shouldFadeIn
-                  ? 'opacity-100 animate-content-fade-in'
-                  : 'opacity-100'
-            }`}
+            className="flex absolute top-0 items-center justify-center h-8 w-full cursor-pointer z-50"
+            onClick={(e) => {
+              e.stopPropagation()
+              if (stage === 'expanded') {
+                // Collapse to peek
+                showPeek()
+              } else if (stage === 'peek') {
+                // Expand fully
+                expandContentPanel()
+              }
+            }}
+
+            // Swipe support
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
           >
-            {pageState.currentPage === 'module' ? renderModuleContent() : renderContentPage()}
+            <div className="w-8 h-[0.125rem] bg-light rounded-full"></div>
+          </div>
+
+          {/* Content area – make wrapper scrollable so content can scroll on mobile */}
+          <div
+            ref={scrollContainerRef}
+            className={`content-scroll flex-1 bg-dark custom-scrollbar [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] ${stage === 'peek' ? 'overflow-hidden' : 'overflow-y-auto'}`}
+
+            // Intercept any interaction while in peek stage to expand the panel
+            onClick={(e) => {
+              e.stopPropagation()
+              if (stage === 'peek') {
+                expandContentPanel()
+              }
+            }}
+
+            onWheel={(e) => {
+              if (stage === 'peek') {
+                e.preventDefault()
+                expandContentPanel()
+              }
+            }}
+
+            onTouchMove={(e) => {
+              if (stage === 'peek') {
+                expandContentPanel()
+              }
+            }}
+          >
+            <div
+              className={`pt-4 ${
+                isHidden
+                  ? 'opacity-0 pointer-events-none transition-none'
+                  : shouldFadeIn
+                    ? 'opacity-100 animate-content-fade-in'
+                    : 'opacity-100'
+              }`}
+            >
+              {pageState.currentPage === 'module' ? renderModuleContent() : renderContentPage()}
+            </div>
           </div>
         </div>
-      </div>
-    )
-  }
+      )}
 
-  // ---- Desktop rendering ---- //
-
-  return (
-    <div className={`w-96 border-l border-light bg-dark flex flex-col overflow-hidden h-full ${
-      isAnimatingOut ? 'animate-slide-out-right' : 'animate-slide-in-right'
-    }`}>
-      {/* Panel header with close button */}
-      <div className="flex items-center justify-between p-1 border-b border-light bg-dark/30">
-        <div></div>
-        <button
-          onClick={toggleContentPanel}
-          className="p-1 hover:bg-dark rounded transition-colors"
-          aria-label="Collapse content panel"
+      {/* Desktop Panel */}
+      {!isMobile && (
+        <div 
+          className={`absolute top-0 right-0 h-full z-30 ${panelWidthClass} border-l border-light bg-dark flex flex-col overflow-hidden transition-all duration-300 ${
+            isAnimatingOut ? 'animate-slide-out-right' : 'animate-slide-in-right'
+          }`}
+          style={{ display: isVisible ? 'flex' : 'none' }}
+          onClick={(e) => e.stopPropagation()} // Prevent clicks inside panel from triggering minimize
         >
-          <svg className="w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
-      </div>
+        {/* Panel header with close button */}
+        <div className="flex items-center justify-between p-1 border-b border-light bg-dark/30">
+          <div></div>
+          <button
+            onClick={toggleContentPanel}
+            className="p-1 hover:bg-dark rounded transition-colors"
+            aria-label="Collapse content panel"
+          >
+            <svg className="w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
 
-      {/* Panel content */}
-      <div className="content-scroll flex-1 overflow-y-auto custom-scrollbar animate-content-fade-in">
-        {pageState.currentPage === 'module' ? renderModuleContent() : renderContentPage()}
-      </div>
-    </div>
+        {/* Panel content */}
+        <div className="content-scroll flex-1 overflow-y-auto custom-scrollbar animate-content-fade-in">
+          {pageState.currentPage === 'module' ? renderModuleContent() : renderContentPage()}
+        </div>
+        </div>
+      )}
+    </>
   )
 }
