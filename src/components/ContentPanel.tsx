@@ -6,7 +6,7 @@ import { usePageState } from '@/context/PageStateContext'
 import { useVideo } from '@/context/VideoContext'
 import { useModules } from '@/context/ModulesContext'
 import { useContentPages } from '@/context/ContentPagesContext'
-import { urlFor, type SanityCategorySection, type SanityImageGallerySection, type SanityTextBlock } from '@/lib/sanity'
+import { urlFor, type SanityCategorySection, type SanityTextBlock } from '@/lib/sanity'
 import { useFootnotes } from '@/lib/hooks/useFootnotes'
 import { useGlossary } from '@/lib/hooks/useGlossary'
 import useIsMobile from '@/lib/hooks/useIsMobile'
@@ -29,11 +29,8 @@ export default function ContentPanel() {
   const [isHidden, setIsHidden] = useState(false)
   const [shouldFadeIn, setShouldFadeIn] = useState(false)
 
-  // State for vertical tabs (used in stills page)
-  const [activeTabIndex, setActiveTabIndex] = useState(0)
-  
-  // State for stills gallery view modes
-  const [galleryViewMode, setGalleryViewMode] = useState<'tabs' | 'expanded' | 'maximized'>('tabs')
+  // State for panel width expansion (desktop)
+  const [isPanelExpanded, setIsPanelExpanded] = useState(false)
 
   const prevContentKeyRef = useRef(contentKey)
   const prevStageRef = useRef(stage)
@@ -85,6 +82,9 @@ export default function ContentPanel() {
     } else if (isVisible) {
       // Start closing animation
       setIsAnimatingOut(true)
+      // Reset all expand states when closing
+      setPanelMaximized(false)
+      setIsPanelExpanded(false)
       // Hide after animation completes
       const timeout = setTimeout(() => {
         setIsVisible(false)
@@ -114,9 +114,6 @@ export default function ContentPanel() {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({ top: 0 })
     }
-    // Reset active tab index and gallery view mode when page changes
-    setActiveTabIndex(0)
-    setGalleryViewMode('tabs')
     setPanelMaximized(false)
   }, [selectedModuleIndex, pageState.currentPage])
 
@@ -144,7 +141,8 @@ export default function ContentPanel() {
     getReferencedFootnotes,
     scrollToFootnote,
     scrollToReference,
-    footnotesMap
+    footnotesMap,
+    highlightedFootnoteId
   } = useFootnotes(footnotes, isMobile)
 
   const {
@@ -152,7 +150,8 @@ export default function ContentPanel() {
     getReferencedGlossaryTerms,
     scrollToGlossaryTerm,
     scrollToGlossaryReference,
-    glossaryMap
+    glossaryMap,
+    highlightedGlossaryId
   } = useGlossary(glossaryTerms, isMobile)
 
   // Force a re-render after refs are collected so the definition lists mount
@@ -205,12 +204,11 @@ export default function ContentPanel() {
       normal: ({children}: any) => <p className="leading-normal mb-4 text-light">{children}</p>,
       h1: ({children}: any) => <h1 className="text-lg font-bold mb-3 text-light">{children}</h1>,
       h2: ({children}: any) => <h2 className="text-base font-semibold mb-2 text-light">{children}</h2>,
-      h3: ({children}: any) => <h3 className="text-sm font-semibold mb-2 text-light">{children}</h3>,
-      intro: ({children}: any) => <blockquote className="border-l-0 border-light pl-12 font-serif font-semibold italic my-10 text-light text-lg leading-0.5">{children}</blockquote>,
-      blockquote: ({children}: any) => <blockquote className="border-l-0 border-light pl-4 font-serif font-semibold italic my-10 text-light text-lg leading-0.5">{children}</blockquote>,
+      h3: ({children}: any) => <h3 className="text-md mb-1 font-sc mb-0 text-light">{children}</h3>,
+      blockquote: ({children}: any) => <blockquote className="font-mono text-sm text-light my-10 border-l-0 pl-12">{children}</blockquote>,
     },
     list: {
-      bullet: ({children}: any) => <ul className="text-sm space-y-1 mb-4 list-disc list-inside text-light">{children}</ul>,
+      bullet: ({children}: any) => <ul className="text-sm space-y-1 mb-4 custom-bullet-list text-light">{children}</ul>,
       number: ({children}: any) => <ol className="text-sm space-y-1 mb-4 list-decimal list-inside text-light">{children}</ol>,
     },
     listItem: {
@@ -220,6 +218,7 @@ export default function ContentPanel() {
     marks: {
       strong: ({children}: any) => <strong className="font-bold text-light">{children}</strong>,
       em: ({children}: any) => <em className="italic text-light">{children}</em>,
+      smallCaps: ({children}: any) => <span className="font-sc text-light">{children}</span>,
       link: ({children, value}: any) => (
         <a href={value?.href} className="text-light underline hover:text-primary" target="_blank" rel="noopener noreferrer">
           {children}
@@ -228,36 +227,42 @@ export default function ContentPanel() {
       footnoteRef: ({value}: {value?: {footnoteId: string}}) => {
         // Get footnote number directly from map without calling registration function
         const footnoteNumber = footnotesMap.get(value!.footnoteId)?.number || '?'
+        const isHighlighted = highlightedFootnoteId === value!.footnoteId
+        
         return (
           <button
             id={`footnote-ref-${value!.footnoteId}`}
+            data-footnote-id={value!.footnoteId}
             onClick={(e) => {
               e.stopPropagation()
               e.preventDefault()
               scrollToFootnote(value!.footnoteId)
             }}
-            className="inline-block text-light hover:text-muted transition-colors cursor-pointer text-xs align-super font-medium"
+            className={`inline-block ${isHighlighted ? 'glossary-highlight-active' : 'text-light hover:text-muted transition-colors'} cursor-pointer text-xs align-super font-medium`}
             title={`Go to footnote ${footnoteNumber}`}
           >
             [{footnoteNumber}]
           </button>
         )
       },
-      glossaryRef: ({value}: {value?: {glossaryId: string}}) => {
-        // Get glossary term directly from map without calling registration function
+      glossaryRef: ({children, value}: {children: ReactNode, value?: {glossaryId: string}}) => {
+        // Get glossary term directly from map for tooltip only
         const glossaryTerm = glossaryMap.get(value!.glossaryId)?.term || '?'
+        const isHighlighted = highlightedGlossaryId === value!.glossaryId
+        
         return (
           <button
             id={`glossary-ref-${value!.glossaryId}`}
+            data-glossary-id={value!.glossaryId}
             onClick={(e) => {
               e.stopPropagation()
               e.preventDefault()
               scrollToGlossaryTerm(value!.glossaryId)
             }}
-            className="glossary-term text-light hover:text-muted transition-colors cursor-pointer font-medium"
+            className={`glossary-term ${isHighlighted ? 'glossary-highlight-active' : 'text-light hover:text-muted transition-colors'} cursor-pointer font-bold`}
             title={`Go to glossary term: ${glossaryTerm}`}
           >
-            {glossaryTerm}
+            {children}
           </button>
         )
       },
@@ -286,7 +291,7 @@ export default function ContentPanel() {
         const displayH = Math.round(displayW * origH / origW)
         
         return (
-          <div className="mt-6 mb-6">
+          <div className={`mt-10 mb-16 ${isPanelExpanded ? 'max-w-[460px]' : ''}`}>
             <img
               src={urlFor(value).width(displayW).quality(80).url()}
               alt={value.alt || ''}
@@ -295,7 +300,7 @@ export default function ContentPanel() {
               style={{ aspectRatio: `${origW}/${origH}`, margin: 0, padding: 0 }}
             />
             {value.caption && (
-              <p className="text-xs italic mt-2 text-light" style={{fontFamily: 'Times Now'}}>{value.caption}</p>
+              <p className="text-xs italic mt-2 text-light" style={{fontFamily: 'Baskervville'}}>{value.caption}</p>
             )}
           </div>
         )
@@ -323,7 +328,7 @@ export default function ContentPanel() {
         )
       },
     },
-  }) as Partial<PortableTextReactComponents>, [scrollToFootnote, scrollToGlossaryTerm, footnotesMap, glossaryMap])
+  }) as Partial<PortableTextReactComponents>, [scrollToFootnote, scrollToGlossaryTerm, footnotesMap, glossaryMap, highlightedGlossaryId, highlightedFootnoteId])
 
   // Memoise rendered PortableText markup so the component subtree (inc. images)
   // is stable between renders. It depends on the module ID (body) and the
@@ -345,7 +350,7 @@ export default function ContentPanel() {
       )}
       <div className="grid grid-cols-1 gap-4">
         {section.categories?.map((category, index) => (
-          <div key={`category-${index}`} className="p-4 border border-light rounded-lg">
+          <div key={`category-${index}`} className={`p-4 border border-light rounded-lg ${isPanelExpanded ? 'max-w-[460px]' : ''}`}>
             {category.image && (
               <div className="w-full h-24 bg-dark rounded-lg mb-3 overflow-hidden">
                 <img
@@ -366,58 +371,6 @@ export default function ContentPanel() {
     </section>
   )
 
-  const renderImageGallerySection = (section: SanityImageGallerySection) => (
-    <section key={`gallery-${section.title || 'untitled'}`} className="space-y-4">
-      
-      <div className="space-y-24">
-        {section.images?.map((imageItem, index) => {
-          // Get dimensions from image asset if available
-          let origW: number | undefined
-          let origH: number | undefined
-
-          // Handle different possible structures of the image asset
-          if (typeof imageItem.image === 'object' && imageItem.image && 'asset' in imageItem.image) {
-            const imageAsset = imageItem.image.asset as any
-            origW = imageAsset?.metadata?.dimensions?.width
-            origH = imageAsset?.metadata?.dimensions?.height
-
-            // If no metadata dimensions, try to parse from asset _ref
-            if (!origW || !origH) {
-              const ref = imageAsset?._ref
-              const match = ref?.match(/-(\d+)x(\d+)-/)
-              if (match) {
-                origW = parseInt(match[1], 10)
-                origH = parseInt(match[2], 10)
-              }
-            }
-          }
-
-          // Use sensible defaults if dimensions can't be determined
-          origW = origW || 800
-          origH = origH || 600
-
-          return (
-            <div key={`image-${index}`} className="space-y-2">
-              <img
-                src={urlFor(imageItem.image).width(800).quality(80).url()}
-                alt={imageItem.alt || imageItem.caption || ''}
-                width={origW}
-                height={origH}
-                className="w-full h-auto"
-                loading="lazy"
-                style={{ aspectRatio: `${origW}/${origH}` }}
-              />
-              {imageItem.caption && (
-                <p className="text-xs italic text-light" style={{ fontFamily: 'Times Now' }}>
-                  {imageItem.caption}
-                </p>
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </section>
-  )
 
   const renderTextBlockSection = (section: SanityTextBlock) => (
     <section key={`text-${Math.random()}`} className="prose-custom">
@@ -469,8 +422,8 @@ export default function ContentPanel() {
                 </>
               )}
             </div>
-            <h1 className="text-3xl font-extrabold font-serif text-light mb-2">
-              {currentModule.title}
+            <h1 className="text-3xl font-bold font-serif italic text-light mb-2">
+              {currentModule.articleHeading}
             </h1>
             {currentModule.excerpt && (
               <p className="text-muted text-sm">
@@ -491,16 +444,20 @@ export default function ContentPanel() {
                       Glossary
                     </h3>
                     <div className="space-y-4">
-                      {referencedGlossaryTerms.map((term) => (
+                      {referencedGlossaryTerms.map((term) => {
+                        const isHighlighted = highlightedGlossaryId === term.id
+                        
+                        return (
                         <div key={term.id} className="text-sm">
-                          <div className="text-light leading-normal">
+                          <div className={`text-light leading-normal ${isHighlighted ? 'glossary-highlight-active' : ''}`}>
                             <button
                               id={`glossary-${term.id}`}
+                              data-glossary-id={term.id}
                               onClick={(e) => {
                                 e.stopPropagation()
                                 scrollToGlossaryReference(term.id)
                               }}
-                              className="text-light hover:text-muted transition-colors cursor-pointer font-serif font-bold inline-flex items-baseline hover:underline hover:decoration-dotted hover:underline-offset-2 group"
+                              className="cursor-pointer font-serif font-bold inline-flex items-baseline hover:underline hover:decoration-dotted hover:underline-offset-2 group text-light hover:text-muted transition-colors"
                               title={`Return to reference for ${term.term}`}
                             >
                               <svg
@@ -511,11 +468,12 @@ export default function ContentPanel() {
                               >
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
                               </svg>
-                              <span className="transition-all">
+                              <span>
                                 {term.term}
                               </span>
                             </button>
-                            <span className="inline font-serif font-normal ml-2">
+                            <span className="inline font-serif font-normal"> : </span>
+                            <span className="inline font-serif font-normal">
                               <PortableText
                                 value={term.definition}
                                 components={{
@@ -525,6 +483,7 @@ export default function ContentPanel() {
                                   marks: {
                                     strong: ({children}) => <strong className="font-extrabold text-light">{children}</strong>,
                                     em: ({children}) => <em className="italic text-light">{children}</em>,
+                                    smallCaps: ({children}) => <span className="font-sc text-light">{children}</span>,
                                     link: ({children, value}) => (
                                       <a href={value?.href} className="text-light underline hover:text-primary" target="_blank" rel="noopener noreferrer">
                                         {children}
@@ -536,7 +495,8 @@ export default function ContentPanel() {
                             </span>
                           </div>
                         </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   </div>
                 )}
@@ -548,21 +508,35 @@ export default function ContentPanel() {
                       Footnotes
                     </h3>
                     <div className="space-y-1">
-                      {referencedFootnotes.map((footnote) => (
+                      {referencedFootnotes.map((footnote) => {
+                        const isHighlighted = highlightedFootnoteId === footnote.id
+                        
+                        return (
                         <div key={footnote.id} className="text-sm">
-                          <p className="text-light leading-normal">
+                          <p className={`text-light leading-normal ${isHighlighted ? 'glossary-highlight-active' : ''}`}>
                             <button
                               id={`footnote-${footnote.id}`}
+                              data-footnote-id={footnote.id}
                               onClick={(e) => {
                                 e.stopPropagation()
                                 scrollToReference(footnote.id)
                               }}
-                              className="text-light hover:text-muted transition-colors cursor-pointer font-serif font-semibold mr-1"
+                              className="cursor-pointer font-serif font-semibold mr-1 inline-flex items-baseline hover:underline hover:decoration-dotted hover:underline-offset-2 group text-light hover:text-muted transition-colors"
                               title={`Return to reference ${footnote.number}`}
                             >
-                              [{footnote.number}]
+                              <svg
+                                className="w-3 h-3 mr-1 text-light group-hover:text-muted transition-colors"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
+                              </svg>
+                              <span>
+                                [{footnote.number}]
+                              </span>
                             </button>
-                            <span className="inline font-serif font-semibold">
+                            <span className="inline font-serif font-normal">
                               <PortableText
                                 value={footnote.content}
                                 components={{
@@ -572,6 +546,7 @@ export default function ContentPanel() {
                                   marks: {
                                     strong: ({children}) => <strong className="font-extrabold text-light">{children}</strong>,
                                     em: ({children}) => <em className="italic text-light">{children}</em>,
+                                    smallCaps: ({children}) => <span className="font-sc text-light">{children}</span>,
                                     link: ({children, value}) => (
                                       <a href={value?.href} className="text-light underline hover:text-primary" target="_blank" rel="noopener noreferrer">
                                         {children}
@@ -583,7 +558,8 @@ export default function ContentPanel() {
                             </span>
                           </p>
                         </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   </div>
                 )}
@@ -627,118 +603,6 @@ export default function ContentPanel() {
       )
     }
 
-    // Special handling for stills page with vertical tabs and expandable gallery
-    if (currentPageData?.pageType === 'stills' && currentPageData.sections?.length > 0) {
-      // Show vertical tabs in collapsed view
-      if (galleryViewMode === 'tabs') {
-        return (
-          <div className="flex flex-col h-full">
-            {/* Vertical Tabs - takes full space when in tabs mode */}
-            <div className="flex-1 flex flex-col">
-              {currentPageData.sections.map((section, index) => {
-                const sectionTitle = section.title || `Section ${index + 1}`
-                
-                return (
-                  <button
-                    key={`tab-${index}`}
-                    onClick={() => {
-                      setActiveTabIndex(index)
-                      setGalleryViewMode('expanded')
-                    }}
-                    className="flex items-center px-6 py-10 gap-2 text-left border-b border-light hover:bg-dark/30 transition-all"
-                  >
-                    {section.icon && (
-                      <div className="flex-shrink-0 w-16 h-full mr-4 flex items-center">
-                        <Image
-                          src={urlFor(section.icon).url()}
-                          alt=""
-                          width={48}
-                          height={48}
-                          className="object-contain max-h-full w-auto"
-                        />
-                      </div>
-                    )}
-                    <h3 className="text-light font-medium text-xl text-base">{sectionTitle}</h3>
-                    
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )
-      }
-
-      // Show expanded gallery content
-      if (galleryViewMode === 'expanded' || galleryViewMode === 'maximized') {
-        const activeSection = currentPageData.sections[activeTabIndex]
-        const sectionTitle = activeSection?.title || `Section ${activeTabIndex + 1}`
-
-        return (
-          <div className="flex flex-col h-full">
-            {/* Gallery Header with Controls */}
-            <div className="flex items-center justify-between p-4">
-              <div className="flex items-center">
-                <button
-                  onClick={() => setGalleryViewMode('tabs')}
-                  className="p-2 hover:bg-dark/50 rounded transition-colors mr-3"
-                  aria-label="Back to sections"
-                >
-                  <svg className="w-4 h-4 text-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-                {/* <h2 className="text-light font-medium text-lg">{sectionTitle}</h2> */}
-              </div>
-              
-              <button
-                onClick={() => {
-                  if (galleryViewMode === 'maximized') {
-                    setGalleryViewMode('expanded')
-                    setPanelMaximized(false)
-                  } else {
-                    setGalleryViewMode('maximized')
-                    setPanelMaximized(true)
-                  }
-                }}
-                className="p-2 hover:bg-dark/50 rounded transition-colors"
-                aria-label={galleryViewMode === 'maximized' ? 'Minimize' : 'Maximize'}
-              >
-                {galleryViewMode === 'maximized' ? (
-                  <svg className="w-4 h-4 text-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9l6 6m0-6l-6 6m12-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4 text-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                  </svg>
-                )}
-              </button>
-            </div>
-
-            {/* Gallery Content */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
-              {activeSection && (() => {
-                switch (activeSection._type) {
-                  case 'categorySection':
-                    return renderCategorySection(activeSection as SanityCategorySection)
-                  case 'imageGallerySection':
-                    return renderImageGallerySection(activeSection as SanityImageGallerySection)
-                  case 'textBlock':
-                    return renderTextBlockSection(activeSection as SanityTextBlock)
-                  default:
-                    return (
-                      <div className="text-muted">
-                        <p className="text-sm">Unsupported section type: {activeSection._type}</p>
-                      </div>
-                    )
-                }
-              })()}
-            </div>
-          </div>
-        )
-      }
-    }
-
     // Default rendering for other pages (consulting, installations, about)
     return (
       <div className="p-4 pb-24 md:pb-16">
@@ -752,8 +616,6 @@ export default function ContentPanel() {
                 switch (section._type) {
                   case 'categorySection':
                     return renderCategorySection(section as SanityCategorySection)
-                  case 'imageGallerySection':
-                    return renderImageGallerySection(section as SanityImageGallerySection)
                   case 'textBlock':
                     return renderTextBlockSection(section as SanityTextBlock)
                   default:
@@ -830,25 +692,8 @@ export default function ContentPanel() {
     ? getPageBySlug(pageState.currentPageSlug)
     : null
 
-  // Handle clicks outside panel to minimize when maximized (desktop only)
-  useEffect(() => {
-    if (isMobile) return
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (galleryViewMode === 'maximized' && currentPageData?.pageType === 'stills') {
-        setGalleryViewMode('expanded')
-        setPanelMaximized(false)
-      }
-    }
-
-    if (galleryViewMode === 'maximized') {
-      document.addEventListener('click', handleClickOutside)
-      return () => document.removeEventListener('click', handleClickOutside)
-    }
-  }, [galleryViewMode, currentPageData?.pageType, setPanelMaximized, isMobile])
-
-  // Determine panel width based on maximized state
-  const panelWidthClass = galleryViewMode === 'maximized' ? 'w-[80vw]' : 'w-96'
+  // Determine panel width based on expansion
+  const panelWidthClass = isPanelExpanded ? 'w-[584px]' : 'w-96'
 
   return (
     <>
@@ -935,19 +780,34 @@ export default function ContentPanel() {
           style={{ display: isVisible ? 'flex' : 'none' }}
           onClick={(e) => e.stopPropagation()} // Prevent clicks inside panel from triggering minimize
         >
-        {/* Panel header with close button */}
-        <div className="flex items-center justify-between p-1 border-b border-light bg-dark/30">
-          <div></div>
-          <button
-            onClick={toggleContentPanel}
-            className="p-1 hover:bg-dark rounded transition-colors"
-            aria-label="Collapse content panel"
-          >
+        {/* Panel header with expand and close buttons */}
+        <button
+          onClick={() => setIsPanelExpanded(!isPanelExpanded)}
+          className="absolute z-20 top-0 left-0 p-1 hover:bg-dark rounded transition-colors"
+          aria-label={isPanelExpanded ? "Contract panel" : "Expand panel"}
+        >
+          {isPanelExpanded ? (
+            // Minus symbol
             <svg className="w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14" />
             </svg>
-          </button>
-        </div>
+          ) : (
+            // Plus symbol
+            <svg className="w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v14m-7-7h14" />
+            </svg>
+          )}
+        </button>
+        
+        <button
+          onClick={toggleContentPanel}
+          className="absolute z-20 top-0 right-0 p-1 hover:bg-dark rounded transition-colors"
+          aria-label="Close content panel"
+        >
+          <svg className="w-4 h-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
 
         {/* Panel content */}
         <div className="content-scroll flex-1 overflow-y-auto custom-scrollbar animate-content-fade-in">

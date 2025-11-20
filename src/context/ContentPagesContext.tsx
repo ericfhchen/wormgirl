@@ -31,10 +31,8 @@ export function ContentPagesProvider({ children }: { children: ReactNode }) {
       try {
         setState(prev => ({ ...prev, loading: true, error: null }))
         const fetchedPages: SanityContentPage[] = await client.fetch(CONTENT_PAGES_QUERY)
-        console.log('✅ Content pages fetched:', fetchedPages)
         setState({ pages: fetchedPages, loading: false, error: null })
       } catch (err) {
-        console.error('❌ Error fetching content pages:', err)
         setState(prev => ({ ...prev, loading: false, error: 'Failed to load content pages' }))
       }
     }

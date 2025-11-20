@@ -3,7 +3,7 @@
 import { usePageState } from '@/context/PageStateContext'
 import { useRef, useState, useEffect } from 'react'
 import { useContentPages } from '@/context/ContentPagesContext'
-import { urlFor, type SanityCategorySection, type SanityImageGallerySection, type SanityTextBlock } from '@/lib/sanity'
+import { urlFor, type SanityCategorySection, type SanityTextBlock } from '@/lib/sanity'
 import { PortableText } from '@portabletext/react'
 import Image from 'next/image'
 
@@ -26,19 +26,11 @@ export default function MobileTopMenu() {
   // Local state for mobile top menu content - doesn't affect global page state
   const [selectedMenuTab, setSelectedMenuTab] = useState<string | null>(null)
   const [contentPanelHeight, setContentPanelHeight] = useState<string>('60vh')
-  
-  // State for vertical tabs (used in stills page)
-  const [activeTabIndex, setActiveTabIndex] = useState(0)
-  
-  // State for stills gallery view modes
-  const [galleryViewMode, setGalleryViewMode] = useState<'tabs' | 'expanded' | 'maximized'>('tabs')
 
   // Reset selected tab when menu closes
   useEffect(() => {
     if (!pageState.isTopMenuOpen) {
       setSelectedMenuTab(null)
-      setActiveTabIndex(0)
-      setGalleryViewMode('tabs')
     }
   }, [pageState.isTopMenuOpen])
 
@@ -127,58 +119,6 @@ export default function MobileTopMenu() {
     </section>
   )
 
-  const renderImageGallerySection = (section: SanityImageGallerySection) => (
-    <section key={`gallery-${section.title || 'untitled'}`} className="space-y-4">
-      
-      <div className="space-y-24">
-        {section.images?.map((imageItem, index) => {
-          // Get dimensions from image asset if available
-          let origW: number | undefined
-          let origH: number | undefined
-
-          // Handle different possible structures of the image asset
-          if (typeof imageItem.image === 'object' && imageItem.image && 'asset' in imageItem.image) {
-            const imageAsset = imageItem.image.asset as any
-            origW = imageAsset?.metadata?.dimensions?.width
-            origH = imageAsset?.metadata?.dimensions?.height
-
-            // If no metadata dimensions, try to parse from asset _ref
-            if (!origW || !origH) {
-              const ref = imageAsset?._ref
-              const match = ref?.match(/-(\d+)x(\d+)-/)
-              if (match) {
-                origW = parseInt(match[1], 10)
-                origH = parseInt(match[2], 10)
-              }
-            }
-          }
-
-          // Use sensible defaults if dimensions can't be determined
-          origW = origW || 800
-          origH = origH || 600
-
-          return (
-            <div key={`image-${index}`} className="space-y-2">
-              <img
-                src={urlFor(imageItem.image).width(800).quality(80).url()}
-                alt={imageItem.alt || imageItem.caption || ''}
-                width={origW}
-                height={origH}
-                className="w-full h-auto"
-                loading="lazy"
-                style={{ aspectRatio: `${origW}/${origH}` }}
-              />
-              {imageItem.caption && (
-                <p className="text-xs italic text-light" style={{ fontFamily: 'Times Now' }}>
-                  {imageItem.caption}
-                </p>
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </section>
-  )
 
   const renderTextBlockSection = (section: SanityTextBlock) => (
     <section key={`text-${Math.random()}`} className="prose-custom">
@@ -192,7 +132,7 @@ export default function MobileTopMenu() {
             h3: ({children}: any) => <h3 className="text-sm font-semibold mb-2 text-light">{children}</h3>,
           },
           list: {
-            bullet: ({children}: any) => <ul className="text-sm space-y-1 mb-4 list-disc list-inside text-light">{children}</ul>,
+            bullet: ({children}: any) => <ul className="text-sm space-y-1 mb-4 custom-bullet-list text-light">{children}</ul>,
             number: ({children}: any) => <ol className="text-sm space-y-1 mb-4 list-decimal list-inside text-light">{children}</ol>,
           },
           listItem: {
@@ -202,6 +142,7 @@ export default function MobileTopMenu() {
           marks: {
             strong: ({children}: any) => <strong className="font-bold text-light">{children}</strong>,
             em: ({children}: any) => <em className="italic text-light">{children}</em>,
+            smallCaps: ({children}: any) => <span className="font-sc text-light">{children}</span>,
             link: ({children, value}: any) => (
               <a href={value?.href} className="text-light underline hover:text-primary" target="_blank" rel="noopener noreferrer">
                 {children}
@@ -237,7 +178,7 @@ export default function MobileTopMenu() {
                     style={{ aspectRatio: `${origW}/${origH}`, margin: 0, padding: 0 }}
                   />
                   {value.caption && (
-                    <p className="text-xs italic mt-2 text-light" style={{fontFamily: 'Times Now'}}>{value.caption}</p>
+                    <p className="text-xs italic mt-2 text-light" style={{fontFamily: 'Baskervville'}}>{value.caption}</p>
                   )}
                 </div>
               )
@@ -303,103 +244,6 @@ export default function MobileTopMenu() {
       )
     }
 
-    // Special handling for stills page with vertical tabs and expandable gallery (same as desktop)
-    if (currentPageData?.pageType === 'stills' && currentPageData.sections?.length > 0) {
-      // Show vertical tabs in collapsed view
-      if (galleryViewMode === 'tabs') {
-        return (
-          <div ref={contentScrollRef} className="bg-black overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ height: contentPanelHeight }}>
-            <div className="flex flex-col h-full">
-              {/* Vertical Tabs - takes full space when in tabs mode */}
-              <div className="flex-1 flex flex-col">
-                {currentPageData.sections.map((section, index) => {
-                  const sectionTitle = section.title || `Section ${index + 1}`
-                  
-                  return (
-                    <button
-                      key={`tab-${index}`}
-                      onClick={() => {
-                        setActiveTabIndex(index)
-                        setGalleryViewMode('expanded')
-                      }}
-                      className="flex items-center p-6 text-left border-b border-light hover:bg-dark/30 transition-all"
-                    >
-                      {section.icon && (
-                        <div className="flex-shrink-0 w-10 h-10 mr-3 flex items-center">
-                          <Image
-                            src={urlFor(section.icon).url()}
-                            alt=""
-                            width={40}
-                            height={40}
-                            className="object-contain max-h-full w-auto"
-                          />
-                        </div>
-                      )}
-                      <div className="flex-1">
-                        <h3 className="text-light font-medium text-base">{sectionTitle}</h3>
-                        {section.images && (
-                          <p className="text-muted text-sm mt-1">
-                            {section.images.length} {section.images.length === 1 ? 'image' : 'images'}
-                          </p>
-                        )}
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        )
-      }
-
-      // Show expanded gallery content
-      if (galleryViewMode === 'expanded') {
-        const activeSection = currentPageData.sections[activeTabIndex]
-        const sectionTitle = activeSection?.title || `Section ${activeTabIndex + 1}`
-
-        return (
-          <div ref={contentScrollRef} className="bg-black overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ height: contentPanelHeight }}>
-            <div className="flex flex-col h-full">
-              {/* Gallery Header with Controls */}
-              <div className="flex items-center justify-between p-2">
-                <div className="flex items-center">
-                  <button
-                    onClick={() => setGalleryViewMode('tabs')}
-                    className="p-2 hover:bg-dark/50 rounded transition-colors mr-3"
-                    aria-label="Back to sections"
-                  >
-                    <svg className="w-4 h-4 text-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-
-              {/* Gallery Content */}
-              <div className="flex-1 p-4">
-                {activeSection && (() => {
-                  switch (activeSection._type) {
-                    case 'categorySection':
-                      return renderCategorySection(activeSection as SanityCategorySection)
-                    case 'imageGallerySection':
-                      return renderImageGallerySection(activeSection as SanityImageGallerySection)
-                    case 'textBlock':
-                      return renderTextBlockSection(activeSection as SanityTextBlock)
-                    default:
-                      return (
-                        <div className="text-muted">
-                          <p className="text-sm">Unsupported section type: {activeSection._type}</p>
-                        </div>
-                      )
-                  }
-                })()}
-              </div>
-            </div>
-          </div>
-        )
-      }
-    }
-
     // Default rendering for other pages (consulting, installations, about)
     return (
       <div ref={contentScrollRef} className="bg-black overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ height: contentPanelHeight }}>
@@ -412,8 +256,6 @@ export default function MobileTopMenu() {
                 switch (section._type) {
                   case 'categorySection':
                     return renderCategorySection(section as SanityCategorySection)
-                  case 'imageGallerySection':
-                    return renderImageGallerySection(section as SanityImageGallerySection)
                   case 'textBlock':
                     return renderTextBlockSection(section as SanityTextBlock)
                   default:

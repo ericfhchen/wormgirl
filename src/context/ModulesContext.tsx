@@ -58,6 +58,7 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
               crop,
               hotspot
             },
+            articleHeading,
             body,
             glossary[] {
               id,
@@ -72,7 +73,6 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
           }
         `)
         
-        console.log('✅ Modules fetched centrally:', fetchedModules)
         setState(prev => ({
           ...prev,
           modules: fetchedModules,
@@ -80,7 +80,6 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
           error: null
         }))
       } catch (error) {
-        console.error('❌ Error fetching modules centrally:', error)
         setState(prev => ({
           ...prev,
           loading: false,

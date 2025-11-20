@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo } from 'react'
+import { useRef, useEffect, useMemo, useCallback, useState } from 'react'
 
 interface Footnote {
   id: string
@@ -9,6 +9,9 @@ interface Footnote {
 export function useFootnotes(footnotes: any[] = [], isMobile: boolean = false) {
   // Track which footnote IDs have appeared in the rich-text so we can order definitions later.
   const footnoteRefsRef = useRef<Set<string>>(new Set())
+  
+  // Track which footnote is currently highlighted
+  const [highlightedFootnoteId, setHighlightedFootnoteId] = useState<string | null>(null)
   
   // Create numbered footnotes mapping
   const footnotesMap = useMemo(() => {
@@ -51,34 +54,78 @@ export function useFootnotes(footnotes: any[] = [], isMobile: boolean = false) {
       .filter(Boolean) as Footnote[]
   }
   
-  // Scroll to footnote
-  const scrollToFootnote = (footnoteId: string) => {
+  // Shared function to highlight all instances of a footnote using React state
+  const globalHighlightTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
+  const highlightAllFootnoteInstances = useCallback((footnoteId: string) => {
+    // Clear any existing timeout
+    if (globalHighlightTimeoutRef.current) {
+      clearTimeout(globalHighlightTimeoutRef.current)
+    }
+    
+    // Set highlighted
+    setHighlightedFootnoteId(footnoteId)
+    
+    // After 2 seconds, instantly remove highlight
+    globalHighlightTimeoutRef.current = setTimeout(() => {
+      setHighlightedFootnoteId(null)
+      globalHighlightTimeoutRef.current = null
+    }, 2000)
+    
+    return true
+  }, [])
+  
+  // Scroll to footnote (memoized to prevent re-renders)
+  const scrollToFootnote = useCallback((footnoteId: string) => {
     if (isMobile) return
-    // Try immediately – if the target isn't mounted yet we'll retry on the next frame.
+    
     const attemptScroll = (attempt = 0) => {
       const element = document.getElementById(`footnote-${footnoteId}`)
       if (element) {
         const container = getScrollContainer()
         if (container) {
           const offsetTop = element.getBoundingClientRect().top - container.getBoundingClientRect().top
-          const target = container.scrollTop + offsetTop - 12 // position inside scroll area
+          const target = container.scrollTop + offsetTop - 12
           const max = container.scrollHeight - container.clientHeight
           const clamped = Math.max(0, Math.min(target, max))
+          
+          // Detect when scroll actually completes
+          let lastScrollTop = container.scrollTop
+          let scrollCheckCount = 0
+          const maxChecks = 60
+          
+          const checkScrollComplete = () => {
+            scrollCheckCount++
+            const currentScrollTop = container.scrollTop
+            const reachedTarget = Math.abs(currentScrollTop - clamped) < 1
+            const stoppedMoving = Math.abs(currentScrollTop - lastScrollTop) < 0.5
+            
+            if (reachedTarget || stoppedMoving || scrollCheckCount >= maxChecks) {
+              highlightAllFootnoteInstances(footnoteId)
+            } else {
+              lastScrollTop = currentScrollTop
+              setTimeout(checkScrollComplete, 50)
+            }
+          }
+          
           container.scrollTo({ top: clamped, behavior: 'smooth' })
+          setTimeout(checkScrollComplete, 100)
         } else {
           element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          setTimeout(() => {
+            highlightAllFootnoteInstances(footnoteId)
+          }, 600)
         }
       } else if (attempt < 5) {
-        // Definitions may not be rendered yet – try again on the next animation frame
         requestAnimationFrame(() => attemptScroll(attempt + 1))
       }
     }
 
     attemptScroll()
-  }
+  }, [isMobile, highlightAllFootnoteInstances])
   
   // Scroll back to footnote reference
-  const scrollToReference = (footnoteId: string) => {
+  const scrollToReference = useCallback((footnoteId: string) => {
     if (isMobile) return
     const attemptScroll = (attempt = 0) => {
       const element = document.getElementById(`footnote-ref-${footnoteId}`)
@@ -89,9 +136,33 @@ export function useFootnotes(footnotes: any[] = [], isMobile: boolean = false) {
           const target = container.scrollTop + offsetTop - 12
           const max = container.scrollHeight - container.clientHeight
           const clamped = Math.max(0, Math.min(target, max))
+          
+          // Detect when scroll actually completes
+          let lastScrollTop = container.scrollTop
+          let scrollCheckCount = 0
+          const maxChecks = 60
+          
+          const checkScrollComplete = () => {
+            scrollCheckCount++
+            const currentScrollTop = container.scrollTop
+            const reachedTarget = Math.abs(currentScrollTop - clamped) < 1
+            const stoppedMoving = Math.abs(currentScrollTop - lastScrollTop) < 0.5
+            
+            if (reachedTarget || stoppedMoving || scrollCheckCount >= maxChecks) {
+              highlightAllFootnoteInstances(footnoteId)
+            } else {
+              lastScrollTop = currentScrollTop
+              setTimeout(checkScrollComplete, 50)
+            }
+          }
+          
           container.scrollTo({ top: clamped, behavior: 'smooth' })
+          setTimeout(checkScrollComplete, 100)
         } else {
           element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          setTimeout(() => {
+            highlightAllFootnoteInstances(footnoteId)
+          }, 600)
         }
       } else if (attempt < 5) {
         requestAnimationFrame(() => attemptScroll(attempt + 1))
@@ -99,7 +170,7 @@ export function useFootnotes(footnotes: any[] = [], isMobile: boolean = false) {
     }
 
     attemptScroll()
-  }
+  }, [isMobile, highlightAllFootnoteInstances])
   
   // Reset footnote refs when module changes
   useEffect(() => {
@@ -112,6 +183,7 @@ export function useFootnotes(footnotes: any[] = [], isMobile: boolean = false) {
     getReferencedFootnotes,
     scrollToFootnote,
     scrollToReference,
-    footnotesMap
+    footnotesMap,
+    highlightedFootnoteId
   }
 } 

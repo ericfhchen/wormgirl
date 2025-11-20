@@ -1,3 +1,21 @@
+import React from 'react'
+
+// Small Caps icon component for the toolbar
+const SmallCapsIcon = () => React.createElement('span', {
+  style: {
+    fontSize: '12px',
+    fontWeight: '600',
+    fontVariant: 'small-caps',
+    letterSpacing: '0.5px',
+  },
+  title: 'Small Caps'
+}, 'SC')
+
+// Small Caps render component for the editor preview
+const SmallCapsRender = (props) => React.createElement('span', {
+  style: { fontVariant: 'small-caps' }
+}, props.children)
+
 export default {
   title: 'Block Content',
   name: 'blockContent',
@@ -13,7 +31,6 @@ export default {
         {title: 'H3', value: 'h3'},
         {title: 'H4', value: 'h4'},
         {title: 'Quote', value: 'blockquote'},
-        {title: 'Intro Passage', value: 'intro'},
       ],
       lists: [
         {title: 'Bullet', value: 'bullet'},
@@ -23,6 +40,12 @@ export default {
         decorators: [
           {title: 'Strong', value: 'strong'},
           {title: 'Emphasis', value: 'em'},
+          {
+            title: 'Small Caps',
+            value: 'smallCaps',
+            icon: SmallCapsIcon,
+            component: SmallCapsRender,
+          },
         ],
         annotations: [
           {

@@ -25,8 +25,8 @@ export default {
       type: 'string',
       options: {
         list: [
-          { title: 'Stills', value: 'stills' },
-          { title: 'Text', value: 'text' }
+          { title: 'Text', value: 'text' },
+          { title: 'Works', value: 'works' }
         ]
       },
       validation: Rule => Rule.required()
@@ -37,8 +37,8 @@ export default {
       type: 'array',
       of: [
         { type: 'categorySection' },
-        { type: 'imageGallerySection' },
-        { type: 'textBlock' }
+        { type: 'textBlock' },
+        { type: 'projectSection' }
       ],
       description: 'Flexible layout sections for this page'
     }

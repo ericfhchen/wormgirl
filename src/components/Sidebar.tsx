@@ -101,13 +101,13 @@ export default function Sidebar() {
                       />
                     )}
                     <div className="flex flex-col p-3 pb-8 justify-start space-y-1 border-b border-light">
-                      <div className={`w-6 h-6 justify-center text-xl font-serif font-bold ${
+                      <div className={`w-7 h-7 justify-center text-2xl font-serif font-bold ${
                         isActive ? 'text-dark' : 'text-light group-hover:text-dark'
                       }`}>
-                        {index === 0 ? 'PRELUDE' : toRomanNumeral(module.order)}
+                        {index === 0 ? '—' : toRomanNumeral(module.order)}
                       </div>
                       <div className="flex-1">
-                        <p className="font-medium text-sm">{module.title}</p>
+                        <p className="font-serif font-bold text-sm tracking-wide">{module.title}</p>
                       </div>
                     </div>
                   </button>
@@ -128,14 +128,14 @@ export default function Sidebar() {
 
           {/* Content Pages */}
           <div className="p-0 ">
-            <div className="">
+            <div className="border-b border-light">
               {contentPages.map((page) => (
                   <button
                     key={page._id}
                     onClick={() => handleContentPageClick(page.slug.current)}
                     className={`group w-full text-left p-3 border-t border-light hover:bg-light hover:text-dark ${pageState.currentPage === 'content' && pageState.currentPageSlug === page.slug.current ? 'bg-light text-dark' : ''}`}
                   >
-                  <p className="font-medium text-xs">{page.title}</p>
+                  <p className="font-serif font-bold text-sm tracking-wide text-xs">{page.title}</p>
                 </button>
               ))}
             </div>

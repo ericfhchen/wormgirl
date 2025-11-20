@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo } from 'react'
+import { useRef, useEffect, useMemo, useCallback, useState } from 'react'
 
 interface GlossaryTerm {
   id: string
@@ -8,6 +8,9 @@ interface GlossaryTerm {
 
 export function useGlossary(glossaryTerms: any[] = [], isMobile: boolean = false) {
   const glossaryRefsRef = useRef<Set<string>>(new Set())
+  
+  // Track which glossary term is currently highlighted
+  const [highlightedGlossaryId, setHighlightedGlossaryId] = useState<string | null>(null)
   
   // Create glossary terms mapping
   const glossaryMap = useMemo(() => {
@@ -50,9 +53,31 @@ export function useGlossary(glossaryTerms: any[] = [], isMobile: boolean = false
       .filter(Boolean) as GlossaryTerm[]
   }
   
-  // Scroll to glossary term
-  const scrollToGlossaryTerm = (glossaryId: string) => {
+  // Shared function to highlight all instances of a glossary term using React state
+  const globalHighlightTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
+  const highlightAllGlossaryInstances = useCallback((glossaryId: string) => {
+    // Clear any existing timeout
+    if (globalHighlightTimeoutRef.current) {
+      clearTimeout(globalHighlightTimeoutRef.current)
+    }
+    
+    // Set highlighted
+    setHighlightedGlossaryId(glossaryId)
+    
+    // After 2 seconds, instantly remove highlight
+    globalHighlightTimeoutRef.current = setTimeout(() => {
+      setHighlightedGlossaryId(null)
+      globalHighlightTimeoutRef.current = null
+    }, 2000)
+    
+    return true
+  }, [])
+  
+  // Scroll to glossary term (memoized to prevent re-renders)
+  const scrollToGlossaryTerm = useCallback((glossaryId: string) => {
     if (isMobile) return
+    
     const attemptScroll = (attempt = 0) => {
       const element = document.getElementById(`glossary-${glossaryId}`)
       if (element) {
@@ -62,9 +87,33 @@ export function useGlossary(glossaryTerms: any[] = [], isMobile: boolean = false
           const target = container.scrollTop + offsetTop - 12
           const max = container.scrollHeight - container.clientHeight
           const clamped = Math.max(0, Math.min(target, max))
+          
+          // Detect when scroll actually completes
+          let lastScrollTop = container.scrollTop
+          let scrollCheckCount = 0
+          const maxChecks = 60
+          
+          const checkScrollComplete = () => {
+            scrollCheckCount++
+            const currentScrollTop = container.scrollTop
+            const reachedTarget = Math.abs(currentScrollTop - clamped) < 1
+            const stoppedMoving = Math.abs(currentScrollTop - lastScrollTop) < 0.5
+            
+            if (reachedTarget || stoppedMoving || scrollCheckCount >= maxChecks) {
+              highlightAllGlossaryInstances(glossaryId)
+            } else {
+              lastScrollTop = currentScrollTop
+              setTimeout(checkScrollComplete, 50)
+            }
+          }
+          
           container.scrollTo({ top: clamped, behavior: 'smooth' })
+          setTimeout(checkScrollComplete, 100)
         } else {
           element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          setTimeout(() => {
+            highlightAllGlossaryInstances(glossaryId)
+          }, 600)
         }
       } else if (attempt < 5) {
         requestAnimationFrame(() => attemptScroll(attempt + 1))
@@ -72,11 +121,11 @@ export function useGlossary(glossaryTerms: any[] = [], isMobile: boolean = false
     }
 
     attemptScroll()
-  }
+  }, [isMobile, highlightAllGlossaryInstances])
   
-  // Scroll back to glossary reference
-  const scrollToGlossaryReference = (glossaryId: string) => {
+  const scrollToGlossaryReference = useCallback((glossaryId: string) => {
     if (isMobile) return
+    
     const attemptScroll = (attempt = 0) => {
       const element = document.getElementById(`glossary-ref-${glossaryId}`)
       if (element) {
@@ -86,9 +135,33 @@ export function useGlossary(glossaryTerms: any[] = [], isMobile: boolean = false
           const target = container.scrollTop + offsetTop - 12
           const max = container.scrollHeight - container.clientHeight
           const clamped = Math.max(0, Math.min(target, max))
+          
+          // Detect when scroll actually completes
+          let lastScrollTop = container.scrollTop
+          let scrollCheckCount = 0
+          const maxChecks = 60
+          
+          const checkScrollComplete = () => {
+            scrollCheckCount++
+            const currentScrollTop = container.scrollTop
+            const reachedTarget = Math.abs(currentScrollTop - clamped) < 1
+            const stoppedMoving = Math.abs(currentScrollTop - lastScrollTop) < 0.5
+            
+            if (reachedTarget || stoppedMoving || scrollCheckCount >= maxChecks) {
+              highlightAllGlossaryInstances(glossaryId)
+            } else {
+              lastScrollTop = currentScrollTop
+              setTimeout(checkScrollComplete, 50)
+            }
+          }
+          
           container.scrollTo({ top: clamped, behavior: 'smooth' })
+          setTimeout(checkScrollComplete, 100)
         } else {
           element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          setTimeout(() => {
+            highlightAllGlossaryInstances(glossaryId)
+          }, 600)
         }
       } else if (attempt < 5) {
         requestAnimationFrame(() => attemptScroll(attempt + 1))
@@ -96,7 +169,7 @@ export function useGlossary(glossaryTerms: any[] = [], isMobile: boolean = false
     }
 
     attemptScroll()
-  }
+  }, [isMobile, highlightAllGlossaryInstances])
   
   // Reset glossary refs when module changes
   useEffect(() => {
@@ -108,6 +181,7 @@ export function useGlossary(glossaryTerms: any[] = [], isMobile: boolean = false
     getReferencedGlossaryTerms,
     scrollToGlossaryTerm,
     scrollToGlossaryReference,
-    glossaryMap
+    glossaryMap,
+    highlightedGlossaryId
   }
-} 
+}

@@ -39,6 +39,7 @@ export interface SanityModule {
       assetId: string
     }
   }
+  articleHeading?: string
   body: any[] // Portable Text blocks
   glossary?: Array<{
     id: string
@@ -64,7 +65,7 @@ export interface SanityContentPage {
   _type: 'contentPage'
   title: string
   slug: { current: string }
-  pageType: 'consulting' | 'stills' | 'installations' | 'about'
+  pageType: 'consulting' | 'installations' | 'about'
   sections: any[] // Flexible sections array
 }
 
@@ -76,17 +77,6 @@ export interface SanityCategorySection {
     title: string
     description?: string
     image?: SanityImageSource
-  }[]
-}
-
-export interface SanityImageGallerySection {
-  _type: 'imageGallerySection'
-  title?: string
-  icon?: SanityImageSource
-  images: {
-    image: SanityImageSource
-    caption?: string
-    alt?: string
   }[]
 }
 
@@ -124,6 +114,7 @@ export const MODULES_QUERY = `
         assetId
       }
     },
+    articleHeading,
     body,
     glossary[] {
       id,
@@ -164,6 +155,7 @@ export const MODULE_BY_SLUG_QUERY = `
         assetId
       }
     },
+    articleHeading,
     body,
     glossary[] {
       id,
@@ -199,19 +191,6 @@ export const CONTENT_PAGES_QUERY = `
           }
         }
       },
-      _type == "imageGallerySection" => {
-        title,
-        icon {
-          asset->
-        },
-        images[] {
-          image {
-            asset->
-          },
-          caption,
-          alt
-        }
-      },
       _type == "textBlock" => {
         title,
         icon {
@@ -242,19 +221,6 @@ export const CONTENT_PAGE_BY_SLUG_QUERY = `
           image {
             asset->
           }
-        }
-      },
-      _type == "imageGallerySection" => {
-        title,
-        icon {
-          asset->
-        },
-        images[] {
-          image {
-            asset->
-          },
-          caption,
-          alt
         }
       },
       _type == "textBlock" => {

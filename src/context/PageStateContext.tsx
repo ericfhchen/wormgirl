@@ -89,6 +89,8 @@ export function PageStateProvider({ children }: { children: ReactNode }) {
     setState(prev => ({
       ...prev,
       contentPanelStage: prev.contentPanelStage === 'hidden' ? 'expanded' : 'hidden',
+      // Always reset maximized state when toggling (both opening and closing)
+      isPanelMaximized: false,
     }))
   }
 

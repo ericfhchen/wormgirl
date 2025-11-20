@@ -34,7 +34,7 @@ export default function RootLayout({
 
   return (
     <html lang="en">
-      <body className="font-sans overflow-hidden">
+      <body className="font-serif overflow-hidden">
         <PreLoader />
         <ContentPagesProvider>
           <ModulesProvider>

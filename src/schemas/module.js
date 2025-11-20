@@ -44,6 +44,12 @@ export default {
       description: 'Looping video that plays when main video ends'
     },
     {
+      name: 'articleHeading',
+      title: 'Article Heading',
+      type: 'string',
+      description: 'The main heading that will be displayed at the top of the article content'
+    },
+    {
       name: 'body',
       title: 'Article Content',
       type: 'blockContent',

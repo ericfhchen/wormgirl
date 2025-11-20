@@ -31,16 +31,15 @@ module.exports = {
         }
       },
       fontFamily: {
-        sans: ['Helvetica Neue', 'Arial', 'sans-serif'],
-        serif: ['Times Now', 'Times New Roman', 'serif'],
+        serif: ['Baskervville', 'Times New Roman', 'serif'],
+        sc: ['Baskervville SC', 'Baskervville', 'Times New Roman', 'serif'],
+        mono: ['Courier', 'Courier New', 'monospace'],
       },
       fontWeight: {
+        'medium': '500',
         'semibold': '600',
-        'extrabold': '900',
-        'black': '900',
-        // Custom weights that match your font files
-        'times-semibold': '600',
-        'times-extrabold': '900',
+        'bold': '700',
+        'extrabold': '700', // Map extrabold to bold since Baskervville doesn't have extrabold
       },
       spacing: {
         'sidebar': '200px',

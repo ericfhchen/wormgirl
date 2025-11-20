@@ -10,53 +10,49 @@
   }
 }
 
+/* Baskervville - Bold */
 @font-face {
-  font-family: 'Times Now';
-  src: url('../../public/fonts/times_now_extrabold_italic-webfont.woff2') format('woff2'),
-       url('../../public/fonts/times_now_extrabold_italic-webfont.woff') format('woff');
-  font-weight: 800;
-  font-style: italic;
-}
-
-@font-face {
-  font-family: 'Times Now';
-  src: url('../../public/fonts/times_now_extrabold-webfont.woff2') format('woff2'),
-       url('../../public/fonts/times_now_extrabold-webfont.woff') format('woff');
-  font-weight: 800;
+  font-family: 'Baskervville';
+  src: url('../../public/fonts/baskervville-latin-700-normal.woff2') format('woff2');
+  font-weight: 700;
   font-style: normal;
+  font-display: swap;
 }
 
+/* Baskervville - SemiBold Italic */
 @font-face {
-  font-family: 'Times Now';
-  src: url('../../public/fonts/times_now_semibold_italic-webfont.woff2') format('woff2'),
-       url('../../public/fonts/times_now_semibold_italic-webfont.woff') format('woff');
+  font-family: 'Baskervville';
+  src: url('../../public/fonts/baskervville-latin-600-italic.woff2') format('woff2');
   font-weight: 600;
   font-style: italic;
+  font-display: swap;
 }
 
+/* Baskervville - Medium */
 @font-face {
-  font-family: 'Times Now';
-  src: url('../../public/fonts/times_now_semibold-webfont.woff2') format('woff2'),
-       url('../../public/fonts/times_now_semibold-webfont.woff') format('woff');
-  font-weight: 600;
-  font-style: normal;
-}
-
-@font-face {
-  font-family: 'Helvetica Neue';
-  src: url('../../public/fonts/helveticaneueltstd-md-webfont.woff2') format('woff2'),
-       url('../../public/fonts/helveticaneueltstd-md-webfont.woff') format('woff');
+  font-family: 'Baskervville';
+  src: url('../../public/fonts/baskervville-latin-500-normal.woff2') format('woff2');
   font-weight: 500;
   font-style: normal;
-
+  font-display: swap;
 }
 
+/* Baskervville - Medium Italic */
 @font-face {
-  font-family: 'Helvetica Neue';
-  src: url('../../public/fonts/helveticaneueltstd-roman-webfont.woff2') format('woff2'),
-       url('../../public/fonts/helveticaneueltstd-roman-webfont.woff') format('woff');
-  font-weight: normal;
+  font-family: 'Baskervville';
+  src: url('../../public/fonts/baskervville-latin-500-italic.woff2') format('woff2');
+  font-weight: 500;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* Baskervville SC - SemiBold */
+@font-face {
+  font-family: 'Baskervville SC';
+  src: url('../../public/fonts/baskervville-sc-latin-600-normal.woff2') format('woff2');
+  font-weight: 600;
   font-style: normal;
+  font-display: swap;
 }
 
 @layer base {
@@ -65,8 +61,11 @@
   }
   
   body {
-    @apply bg-dark text-light font-sans;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    @apply bg-dark text-light font-serif;
+    font-feature-settings: "rlig" 1, "calt" 1, "lnum" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
   
   html {
@@ -147,11 +146,55 @@ html, body {
     text-decoration-style: dotted;
     text-underline-offset: 2px;
     cursor: pointer;
-    transition: color 0.2s ease;
+    background-color: transparent;
+    transition: background-color 1s ease-out, color 0.3s ease-out;
   }
   
   .glossary-term:hover {
     color: var(--muted);
+  }
+
+  /* Glossary highlight states */
+  .glossary-highlight-active {
+    background-color: var(--light);
+    color: var(--dark) !important;
+    transition: none;
+  }
+
+  /* Force children to inherit color (fixes SVG/span color in lists) */
+  .glossary-highlight-active * {
+    color: var(--dark) !important;
+  }
+
+  .glossary-highlight-fading {
+    background-color: rgba(147, 153, 138, 0); /* Explicit transparent version of --light */
+    color: var(--light) !important;
+    transition: background-color 1s ease-out, color 1s ease-out;
+  }
+
+  /* Ensure children also transition back to light */
+  .glossary-highlight-fading * {
+    color: var(--light) !important;
+    transition: color 1s ease-out;
+  }
+
+  /* Custom bullet styling */
+  .custom-bullet-list {
+    list-style: none;
+    padding-left: 0;
+    margin-left: 2rem;
+  }
+  
+  .custom-bullet-list li {
+    padding-left: 1.5em;
+    position: relative;
+  }
+  
+  .custom-bullet-list li::before {
+    content: '\3030';
+    position: absolute;
+    left: 0;
+    color: var(--light);
   }
 }
 

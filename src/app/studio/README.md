@@ -65,7 +65,7 @@ Schemas are organized in `/src/schemas/`:
 - `module.js` - Educational module structure
 - `contentPage.js` - Content page structure
 - `blockContent.js` - Rich text configuration
-- `textBlock.js`, `categorySection.js`, `imageGallerySection.js` - Content blocks
+- `textBlock.js`, `categorySection.js` - Content blocks
 
 ## File Organization
 
