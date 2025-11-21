@@ -20,10 +20,6 @@ export default function ImageCarousel({ images, projectTitle }: ImageCarouselPro
   const containerRef = useRef<HTMLDivElement>(null)
   const [imagesLoaded, setImagesLoaded] = useState(false)
 
-  if (!images || images.length === 0) {
-    return null
-  }
-
   useEffect(() => {
     // Measure all images once they load
     const measureImages = () => {
@@ -97,6 +93,10 @@ export default function ImageCarousel({ images, projectTitle }: ImageCarouselPro
     } else {
       goToNext()
     }
+  }
+
+  if (!images || images.length === 0) {
+    return null
   }
 
   const currentImage = images[currentIndex]
