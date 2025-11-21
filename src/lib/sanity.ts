@@ -60,32 +60,44 @@ export interface SanityModule {
   }
 }
 
-export interface SanityContentPage {
+export interface SanityAboutPage {
   _id: string
-  _type: 'contentPage'
+  _type: 'aboutPage'
   title: string
   slug: { current: string }
-  pageType: 'consulting' | 'installations' | 'about'
-  sections: any[] // Flexible sections array
-}
-
-export interface SanityCategorySection {
-  _type: 'categorySection'
-  title?: string
-  icon?: SanityImageSource
-  categories: {
-    title: string
-    description?: string
-    image?: SanityImageSource
-  }[]
-}
-
-export interface SanityTextBlock {
-  _type: 'textBlock'
-  title?: string
-  icon?: SanityImageSource
   content: any[] // Portable Text blocks
 }
+
+export interface SanityLibraryPage {
+  _id: string
+  _type: 'libraryPage'
+  title: string
+  slug: { current: string }
+  description?: any[] // Portable Text blocks
+  sound?: Array<{
+    title: string
+    url: string
+    description?: string
+  }>
+  books?: Array<{
+    title: string
+    url: string
+    description?: string
+  }>
+}
+
+export interface SanityWorksPage {
+  _id: string
+  _type: 'worksPage'
+  title: string
+  slug: { current: string }
+  projects?: Array<{
+    _ref: string
+    _type: 'reference'
+  }>
+}
+
+export type SanityPage = SanityAboutPage | SanityLibraryPage | SanityWorksPage
 
 // GROQ Queries
 export const MODULES_QUERY = `
@@ -171,64 +183,92 @@ export const MODULE_BY_SLUG_QUERY = `
 `
 
 export const CONTENT_PAGES_QUERY = `
-  *[_type == "contentPage"] {
+  *[_type in ["aboutPage", "libraryPage", "worksPage"]] {
     _id,
+    _type,
     title,
     slug,
-    pageType,
-    sections[] {
-      _type,
-      _type == "categorySection" => {
+    _type == "aboutPage" => {
+      content
+    },
+    _type == "libraryPage" => {
+      description,
+      sound[] {
         title,
-        icon {
-          asset->
-        },
-        categories[] {
-          title,
-          description,
-          image {
-            asset->
-          }
-        }
+        url,
+        description
       },
-      _type == "textBlock" => {
+      books[] {
         title,
-        icon {
-          asset->
+        url,
+        description
+      }
+    },
+    _type == "worksPage" => {
+      projects[]-> {
+        _id,
+        title,
+        slug,
+        category,
+        projectDetails,
+        imageCarousel[] {
+          asset-> {
+            url
+          },
+          caption,
+          alt
         },
-        content
+        projectDescription,
+        projectLinks[] {
+          label,
+          url
+        }
       }
     }
   }
 `
 
 export const CONTENT_PAGE_BY_SLUG_QUERY = `
-  *[_type == "contentPage" && slug.current == $slug][0] {
+  *[_type in ["aboutPage", "libraryPage", "worksPage"] && slug.current == $slug][0] {
     _id,
+    _type,
     title,
     slug,
-    pageType,
-    sections[] {
-      _type,
-      _type == "categorySection" => {
+    _type == "aboutPage" => {
+      content
+    },
+    _type == "libraryPage" => {
+      description,
+      sound[] {
         title,
-        icon {
-          asset->
-        },
-        categories[] {
-          title,
-          description,
-          image {
-            asset->
-          }
-        }
+        url,
+        description
       },
-      _type == "textBlock" => {
+      books[] {
         title,
-        icon {
-          asset->
+        url,
+        description
+      }
+    },
+    _type == "worksPage" => {
+      projects[]-> {
+        _id,
+        title,
+        slug,
+        category,
+        projectDetails,
+        imageCarousel[] {
+          asset-> {
+            url
+          },
+          caption,
+          alt
         },
-        content
+        projectDescription,
+        projectLinks[] {
+          label,
+          url
+        }
       }
     }
   }
@@ -264,10 +304,10 @@ export async function getModuleBySlug(slug: string): Promise<SanityModule | null
   return await client.fetch(MODULE_BY_SLUG_QUERY, { slug })
 }
 
-export async function getContentPages(): Promise<SanityContentPage[]> {
+export async function getContentPages(): Promise<SanityPage[]> {
   return await client.fetch(CONTENT_PAGES_QUERY)
 }
 
-export async function getContentPageBySlug(slug: string): Promise<SanityContentPage | null> {
+export async function getContentPageBySlug(slug: string): Promise<SanityPage | null> {
   return await client.fetch(CONTENT_PAGE_BY_SLUG_QUERY, { slug })
 } 

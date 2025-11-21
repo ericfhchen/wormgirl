@@ -1,18 +1,17 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { client, CONTENT_PAGES_QUERY, SanityContentPage } from '@/lib/sanity'
+import { client, CONTENT_PAGES_QUERY, SanityPage } from '@/lib/sanity'
 
 interface ContentPagesState {
-  pages: SanityContentPage[]
+  pages: SanityPage[]
   loading: boolean
   error: string | null
 }
 
 interface ContentPagesContextType {
   state: ContentPagesState
-  getPageByType: (type: SanityContentPage['pageType']) => SanityContentPage | null
-  getPageBySlug: (slug: string) => SanityContentPage | null
+  getPageBySlug: (slug: string) => SanityPage | null
 }
 
 const initialState: ContentPagesState = {
@@ -30,7 +29,7 @@ export function ContentPagesProvider({ children }: { children: ReactNode }) {
     async function fetchPages() {
       try {
         setState(prev => ({ ...prev, loading: true, error: null }))
-        const fetchedPages: SanityContentPage[] = await client.fetch(CONTENT_PAGES_QUERY)
+        const fetchedPages: SanityPage[] = await client.fetch(CONTENT_PAGES_QUERY)
         setState({ pages: fetchedPages, loading: false, error: null })
       } catch (err) {
         setState(prev => ({ ...prev, loading: false, error: 'Failed to load content pages' }))
@@ -40,17 +39,12 @@ export function ContentPagesProvider({ children }: { children: ReactNode }) {
     fetchPages()
   }, [])
 
-  const getPageByType = (type: SanityContentPage['pageType']) => {
-    return state.pages.find(page => page.pageType === type) || null
-  }
-
   const getPageBySlug = (slug: string) => {
     return state.pages.find(page => page.slug?.current === slug) || null
   }
 
   const value: ContentPagesContextType = {
     state,
-    getPageByType,
     getPageBySlug,
   }
 

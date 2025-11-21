@@ -6,18 +6,21 @@ import { usePageState } from '@/context/PageStateContext'
 import { useVideo } from '@/context/VideoContext'
 import { useModules } from '@/context/ModulesContext'
 import { useContentPages } from '@/context/ContentPagesContext'
-import { urlFor, type SanityCategorySection, type SanityTextBlock } from '@/lib/sanity'
+import { urlFor, type SanityAboutPage, type SanityLibraryPage, type SanityWorksPage } from '@/lib/sanity'
 import { useFootnotes } from '@/lib/hooks/useFootnotes'
 import { useGlossary } from '@/lib/hooks/useGlossary'
 import useIsMobile from '@/lib/hooks/useIsMobile'
 import Image from 'next/image'
+import ImageCarousel from './ImageCarousel'
+import TruncatedDescription from './TruncatedDescription'
+import aboutPage from '@/schemas/aboutPage'
 
 export default function ContentPanel() {
   const { state: pageState, toggleContentPanel, isContentPanelExpanded, expandContentPanel, showPeek, setPanelMaximized } = usePageState()
   const isMobile = useIsMobile()
   const { state: videoState } = useVideo()
   const { state: modulesState, getModule } = useModules()
-  const { state: contentPagesState, getPageByType, getPageBySlug } = useContentPages()
+  const { state: contentPagesState, getPageBySlug } = useContentPages()
   
   // Current panel stage
   const stage = pageState.contentPanelStage
@@ -330,6 +333,125 @@ export default function ContentPanel() {
     },
   }) as Partial<PortableTextReactComponents>, [scrollToFootnote, scrollToGlossaryTerm, footnotesMap, glossaryMap, highlightedGlossaryId, highlightedFootnoteId])
 
+  // Separate components for content pages with tighter spacing and smaller text
+  const contentPageTextComponents = useMemo(() => ({
+    block: {
+      normal: ({children}: any) => <p className="text-sm leading-snug mb-4 text-light">{children}</p>,
+      h1: ({children}: any) => <h1 className="text-sm font-bold mb-2 text-light">{children}</h1>,
+      h2: ({children}: any) => <h2 className="text-sm font-semibold mb-1 text-light">{children}</h2>,
+      h3: ({children}: any) => <h3 className="text-sm mb-1 font-sc mb-0 text-light">{children}</h3>,
+      blockquote: ({children}: any) => <blockquote className="font-mono text-xs text-light my-4 border-l-0 pl-6">{children}</blockquote>,
+    },
+    list: {
+      bullet: ({children}: any) => <ul className="text-xs space-y-0 mb-2 custom-bullet-list text-light">{children}</ul>,
+      number: ({children}: any) => <ol className="text-xs space-y-0 mb-2 list-decimal list-inside text-light">{children}</ol>,
+    },
+    listItem: {
+      bullet: ({children}: any) => <li className="text-light leading-tight">{children}</li>,
+      number: ({children}: any) => <li className="text-light leading-tight">{children}</li>,
+    },
+    marks: {
+      strong: ({children}: any) => <strong className="font-bold text-light">{children}</strong>,
+      em: ({children}: any) => <em className="italic text-light">{children}</em>,
+      smallCaps: ({children}: any) => <span className="font-sc text-light">{children}</span>,
+      link: ({children, value}: any) => (
+        <a href={value?.href} className="text-light underline hover:text-primary" target="_blank" rel="noopener noreferrer">
+          {children}
+        </a>
+      ),
+      footnoteRef: ({value}: {value?: {footnoteId: string}}) => {
+        const footnoteNumber = footnotesMap.get(value!.footnoteId)?.number || '?'
+        const isHighlighted = highlightedFootnoteId === value!.footnoteId
+        return (
+          <button
+            id={`footnote-ref-${value!.footnoteId}`}
+            data-footnote-id={value!.footnoteId}
+            onClick={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+              scrollToFootnote(value!.footnoteId)
+            }}
+            className={`inline-block ${isHighlighted ? 'glossary-highlight-active' : 'text-light hover:text-muted transition-colors'} cursor-pointer text-xs align-super font-medium`}
+            title={`Go to footnote ${footnoteNumber}`}
+          >
+            [{footnoteNumber}]
+          </button>
+        )
+      },
+      glossaryRef: ({children, value}: {children: ReactNode, value?: {glossaryId: string}}) => {
+        const glossaryTerm = glossaryMap.get(value!.glossaryId)?.term || '?'
+        const isHighlighted = highlightedGlossaryId === value!.glossaryId
+        return (
+          <button
+            id={`glossary-ref-${value!.glossaryId}`}
+            data-glossary-id={value!.glossaryId}
+            onClick={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+              scrollToGlossaryTerm(value!.glossaryId)
+            }}
+            className={`glossary-term ${isHighlighted ? 'glossary-highlight-active' : 'text-light hover:text-muted transition-colors'} cursor-pointer font-bold`}
+            title={`Go to glossary term: ${glossaryTerm}`}
+          >
+            {children}
+          </button>
+        )
+      },
+    },
+    types: {
+      image: ({ value }: { value: any }) => {
+        let origW: number | undefined = value?.asset?.metadata?.dimensions?.width
+        let origH: number | undefined = value?.asset?.metadata?.dimensions?.height
+        if (!origW || !origH) {
+          const ref: string | undefined = value?.asset?._ref
+          const match = ref?.match(/-(\d+)x(\d+)-/)
+          if (match) {
+            origW = parseInt(match[1], 10)
+            origH = parseInt(match[2], 10)
+          }
+        }
+        origW = origW || 800
+        origH = origH || 600
+        const displayW = 800
+        const displayH = Math.round(displayW * origH / origW)
+        
+        return (
+          <div className={`mt-4 mb-6 ${isPanelExpanded ? 'max-w-[460px]' : ''}`}>
+            <img
+              src={urlFor(value).width(displayW).quality(80).url()}
+              alt={value.alt || ''}
+              className="w-full h-auto block"
+              loading="lazy"
+              style={{ aspectRatio: `${origW}/${origH}`, margin: 0, padding: 0 }}
+            />
+            {value.caption && (
+              <p className="text-xs italic mt-1 text-light" style={{fontFamily: 'Baskervville'}}>{value.caption}</p>
+            )}
+          </div>
+        )
+      },
+      spotifyEmbed: ({ value }: { value: { url: string; height?: number } }) => {
+        if (!value?.url) return null
+        const embedUrl = value.url.replace('open.spotify.com/', 'open.spotify.com/embed/')
+        const height = value.height || 380
+        return (
+          <div className="my-4">
+            <iframe 
+              src={embedUrl}
+              width="100%"
+              height={height}
+              frameBorder="0"
+              allowTransparency={true}
+              allow="encrypted-media"
+              loading="lazy"
+              className="rounded-lg"
+            />
+          </div>
+        )
+      },
+    },
+  }) as Partial<PortableTextReactComponents>, [scrollToFootnote, scrollToGlossaryTerm, footnotesMap, glossaryMap, highlightedGlossaryId, highlightedFootnoteId])
+
   // Memoise rendered PortableText markup so the component subtree (inc. images)
   // is stable between renders. It depends on the module ID (body) and the
   // portableTextComponents map.
@@ -342,44 +464,6 @@ export default function ContentPanel() {
     return null
   }, [currentModule?._id, portableTextComponents])
 
-  // Section rendering functions
-  const renderCategorySection = (section: SanityCategorySection) => (
-    <section key={`category-${section.title || 'untitled'}`} className="space-y-4">
-      {section.title && (
-        <h2 className="text-lg font-semibold mb-3 text-light">{section.title}</h2>
-      )}
-      <div className="grid grid-cols-1 gap-4">
-        {section.categories?.map((category, index) => (
-          <div key={`category-${index}`} className={`p-4 border border-light rounded-lg ${isPanelExpanded ? 'max-w-[460px]' : ''}`}>
-            {category.image && (
-              <div className="w-full h-24 bg-dark rounded-lg mb-3 overflow-hidden">
-                <img
-                  src={urlFor(category.image).width(400).height(200).quality(80).url()}
-                  alt={category.title || ''}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
-              </div>
-            )}
-            <h3 className="font-medium mb-1 text-sm text-light">{category.title}</h3>
-            {category.description && (
-              <p className="text-xs text-muted">{category.description}</p>
-            )}
-          </div>
-        ))}
-      </div>
-    </section>
-  )
-
-
-  const renderTextBlockSection = (section: SanityTextBlock) => (
-    <section key={`text-${Math.random()}`} className="prose-custom">
-      <PortableText 
-        value={section.content} 
-        components={portableTextComponents} 
-      />
-    </section>
-  )
 
 
   const renderModuleContent = () => {
@@ -603,39 +687,204 @@ export default function ContentPanel() {
       )
     }
 
-    // Default rendering for other pages (consulting, installations, about)
-    return (
-      <div className="p-4 pb-24 md:pb-16">
-        <div className="max-w-none">
-          
-
-
-          <div className="space-y-8">
-            {currentPageData.sections?.length > 0 ? (
-              currentPageData.sections.map((section, index) => {
-                switch (section._type) {
-                  case 'categorySection':
-                    return renderCategorySection(section as SanityCategorySection)
-                  case 'textBlock':
-                    return renderTextBlockSection(section as SanityTextBlock)
-                  default:
-                    return (
-                      <div key={`unknown-${index}`} className="text-muted">
-                        <p className="text-sm">Unsupported section type: {section._type}</p>
-                      </div>
-                    )
-                }
-              })
-            ) : (
-              <div className="text-center text-muted">
-                <p className="text-sm">No content sections available</p>
-                <p className="text-xs mt-2">Add sections to this page in the Sanity Studio</p>
+    // Render based on page type
+    switch (currentPageData._type) {
+      case 'aboutPage':
+        return (
+          <div className="p-4 pb-24 md:pb-16">
+            <h1 className="text-3xl font-bold font-serif italic text-light pb-8">
+              {currentPageData.title}
+            </h1>
+            <div className="max-w-none">
+              <div className="prose-custom">
+                {(currentPageData as SanityAboutPage).content && (
+                  <PortableText 
+                    value={(currentPageData as SanityAboutPage).content} 
+                    components={contentPageTextComponents} 
+                  />
+                )}
               </div>
-            )}
+            </div>
           </div>
-        </div>
-      </div>
-    )
+        )
+
+      case 'libraryPage': {
+        const libraryPage = currentPageData as SanityLibraryPage
+        
+        // Helper function to render a numbered list of links
+        const renderLinkList = (items: Array<{ title: string; url: string; description?: string }>, startIndex: number = 0) => {
+          if (!items || items.length === 0) return null
+          
+          return (
+            <div className="w-full">
+              <ul className="w-full">
+                {items.map((item, index) => {
+                  const counter = String(startIndex + index + 1).padStart(3, '0')
+                  return (
+                    <li 
+                      key={index} 
+                      className="w-full border-t border-light py-3 last:border-b"
+                    >
+                      <div className="flex items-center">
+                        <span className="text-sm text-light font-mono">{counter}</span>
+                        <a 
+                          href={item.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-sm text-light hover:text-muted transition-colors ml-4"
+                        >
+                          {item.title}
+                        </a>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )
+        }
+        
+        return (
+          <div className="p-4 pb-24 md:pb-16">
+            <h1 className="text-3xl font-bold font-serif italic text-light pb-8">
+              {libraryPage.title}
+            </h1>
+            <div className="max-w-none">
+              {libraryPage.description && (
+                <div className="prose-custom mb-16">
+                  <PortableText 
+                    value={libraryPage.description} 
+                    components={contentPageTextComponents} 
+                  />
+                </div>
+              )}
+              {libraryPage.sound && libraryPage.sound.length > 0 && (
+                <div className="mb-16">
+                  <h2 className="text-lg font-semibold mb-4 text-light">Sound</h2>
+                  {renderLinkList(libraryPage.sound)}
+                </div>
+              )}
+              {libraryPage.books && libraryPage.books.length > 0 && (
+                <div className="mb-16">
+                  <h2 className="text-lg font-semibold mb-4 text-light">Books</h2>
+                  {renderLinkList(libraryPage.books)}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      }
+
+      case 'worksPage': {
+        const worksPage = currentPageData as SanityWorksPage
+        return (
+          <div className="p-4 pb-24 md:pb-16">
+            <h1 className="text-3xl font-bold font-serif italic text-light pb-8">
+              {worksPage.title}
+            </h1>
+            <div 
+              className="max-w-none"
+              style={{
+                // Ensure stable width regardless of scrollbar
+                width: '100%',
+                boxSizing: 'border-box',
+                // Prevent width recalculation
+                minWidth: 0,
+                maxWidth: '100%'
+              }}
+            >
+              {worksPage.projects && worksPage.projects.length > 0 ? (
+                <div className="space-y-8">
+                  {worksPage.projects.map((project: any) => (
+                    <div 
+                      key={project._id} 
+                      className="border-b border-light pb-8 last:border-0"
+                      style={{
+                        // Ensure project container maintains stable width
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        // Prevent layout shifts
+                        contain: 'layout',
+                        // Maintain stable positioning
+                        position: 'relative'
+                      }}
+                    > 
+                      {project.projectDetails && (
+                        <div className="prose-custom mb-4">
+                          <PortableText 
+                            value={project.projectDetails} 
+                            components={contentPageTextComponents} 
+                          />
+                        </div>
+                      )}
+                      {project.imageCarousel && project.imageCarousel.length > 0 && (
+                        <div className="mb-4">
+                          <ImageCarousel 
+                            images={project.imageCarousel} 
+                            projectTitle={project.title}
+                          />
+                        </div>
+                      )}
+                      {project.projectDescription && (
+                        <div 
+                          style={{ 
+                            // Use flex to maintain stable positioning
+                            display: 'flex',
+                            flexDirection: 'column',
+                            // Prevent layout shifts
+                            contain: 'layout style',
+                            // Maintain stable position
+                            position: 'relative',
+                            width: '100%'
+                          }}
+                        >
+                          <TruncatedDescription 
+                            value={project.projectDescription} 
+                            components={contentPageTextComponents} 
+                          />
+                        </div>
+                      )}
+                      {project.projectLinks && project.projectLinks.length > 0 && (
+                        <div className="mt-4">
+                          <ul className="space-y-2">
+                            {project.projectLinks.map((link: { label: string; url: string }, index: number) => (
+                              <li key={index}>
+                                <a 
+                                  href={link.url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-sm no-underline hover:underline transition-all"
+                                >
+                                  {link.label}
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center text-muted">
+                  <p className="text-sm">No projects available</p>
+                  <p className="text-xs mt-2">Add projects to this page in the Sanity Studio</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      }
+
+      default:
+        return (
+          <div className="p-6">
+            <div className="text-center text-muted">
+              <p className="text-sm">Unsupported page type: {(currentPageData as any)._type}</p>
+            </div>
+          </div>
+        )
+    }
   }
 
   // Handle visibility through CSS instead of early returns to maintain consistent hook calls
@@ -810,7 +1059,17 @@ export default function ContentPanel() {
         </button>
 
         {/* Panel content */}
-        <div className="content-scroll flex-1 overflow-y-auto custom-scrollbar animate-content-fade-in">
+        <div 
+          className="content-scroll flex-1 custom-scrollbar animate-content-fade-in"
+          style={{ 
+            scrollbarGutter: 'stable',
+            // Always reserve scrollbar space by using scroll instead of auto
+            overflowY: 'scroll',
+            // Ensure stable width
+            width: '100%',
+            boxSizing: 'border-box'
+          }}
+        >
           {pageState.currentPage === 'module' ? renderModuleContent() : renderContentPage()}
         </div>
         </div>

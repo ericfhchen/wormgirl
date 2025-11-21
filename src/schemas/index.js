@@ -1,24 +1,20 @@
 import blockContent from './blockContent'
-import categorySection from './categorySection'
-import textBlock from './textBlock'
 import module from './module'
-import contentPage from './contentPage'
+import aboutPage from './aboutPage'
 import libraryPage from './libraryPage'
+import worksPage from './worksPage'
 import intro from './intro'
 import project from './project'
-import projectSection from './projectSection'
 
 export const schemaTypes = [
   // Document types
   intro,
   module,
-  contentPage,
+  aboutPage,
   libraryPage,
+  worksPage,
   project,
   
   // Object types
   blockContent,
-  categorySection,
-  textBlock,
-  projectSection,
 ] 

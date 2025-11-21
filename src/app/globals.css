@@ -83,6 +83,7 @@ html, body {
     scrollbar-width: thin;
     scrollbar-color: var(--dark) transparent;
     overflow-anchor: none; /* Prevent scroll anchoring jumps in Chrome */
+    scrollbar-gutter: stable; /* Reserve space for scrollbar to prevent layout shifts */
   }
   
   .custom-scrollbar::-webkit-scrollbar {

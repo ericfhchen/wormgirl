@@ -3,9 +3,11 @@
 import { usePageState } from '@/context/PageStateContext'
 import { useRef, useState, useEffect } from 'react'
 import { useContentPages } from '@/context/ContentPagesContext'
-import { urlFor, type SanityCategorySection, type SanityTextBlock } from '@/lib/sanity'
+import { urlFor, type SanityAboutPage, type SanityLibraryPage, type SanityWorksPage } from '@/lib/sanity'
 import { PortableText } from '@portabletext/react'
 import Image from 'next/image'
+import ImageCarousel from './ImageCarousel'
+import TruncatedDescription from './TruncatedDescription'
 
 export default function MobileTopMenu() {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -21,7 +23,7 @@ export default function MobileTopMenu() {
     collapseContentPanel,
   } = usePageState()
 
-  const { state: contentPagesState, getPageByType, getPageBySlug } = useContentPages()
+  const { state: contentPagesState, getPageBySlug } = useContentPages()
   
   // Local state for mobile top menu content - doesn't affect global page state
   const [selectedMenuTab, setSelectedMenuTab] = useState<string | null>(null)
@@ -90,126 +92,169 @@ export default function MobileTopMenu() {
     }
   }
 
-  // Section rendering functions (same as ContentPanel)
-  const renderCategorySection = (section: SanityCategorySection) => (
-    <section key={`category-${section.title || 'untitled'}`} className="space-y-4">
-      {section.title && (
-        <h2 className="text-lg font-semibold mb-3 text-light">{section.title}</h2>
-      )}
-      <div className="grid grid-cols-1 gap-4">
-        {section.categories?.map((category, index) => (
-          <div key={`category-${index}`} className="p-4 border border-light rounded-lg">
-            {category.image && (
-              <div className="w-full h-24 bg-dark rounded-lg mb-3 overflow-hidden">
-                <img
-                  src={urlFor(category.image).width(400).height(200).quality(80).url()}
-                  alt={category.title || ''}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
-              </div>
-            )}
-            <h3 className="font-medium mb-1 text-sm text-light">{category.title}</h3>
-            {category.description && (
-              <p className="text-xs text-muted">{category.description}</p>
+  const portableTextComponents = {
+    block: {
+      normal: ({children}: any) => <p className="leading-normal mb-4 text-light">{children}</p>,
+      h1: ({children}: any) => <h1 className="text-lg font-bold mb-3 text-light">{children}</h1>,
+      h2: ({children}: any) => <h2 className="text-base font-semibold mb-2 text-light">{children}</h2>,
+      h3: ({children}: any) => <h3 className="text-sm font-semibold mb-2 text-light">{children}</h3>,
+    },
+    list: {
+      bullet: ({children}: any) => <ul className="text-sm space-y-1 mb-4 custom-bullet-list text-light">{children}</ul>,
+      number: ({children}: any) => <ol className="text-sm space-y-1 mb-4 list-decimal list-inside text-light">{children}</ol>,
+    },
+    listItem: {
+      bullet: ({children}: any) => <li className="text-light">{children}</li>,
+      number: ({children}: any) => <li className="text-light">{children}</li>,
+    },
+    marks: {
+      strong: ({children}: any) => <strong className="font-bold text-light">{children}</strong>,
+      em: ({children}: any) => <em className="italic text-light">{children}</em>,
+      smallCaps: ({children}: any) => <span className="font-sc text-light">{children}</span>,
+      link: ({children, value}: any) => (
+        <a href={value?.href} className="text-light underline hover:text-primary" target="_blank" rel="noopener noreferrer">
+          {children}
+        </a>
+      ),
+    },
+    types: {
+      image: ({ value }: { value: any }) => {
+        let origW: number | undefined = value?.asset?.metadata?.dimensions?.width
+        let origH: number | undefined = value?.asset?.metadata?.dimensions?.height
+
+        if (!origW || !origH) {
+          const ref: string | undefined = value?.asset?._ref
+          const match = ref?.match(/-(\d+)x(\d+)-/)
+          if (match) {
+            origW = parseInt(match[1], 10)
+            origH = parseInt(match[2], 10)
+          }
+        }
+
+        origW = origW || 800
+        origH = origH || 600
+
+        return (
+          <div className="mb-6">
+            <img
+              src={urlFor(value).width(600).quality(80).url()}
+              alt={value.alt || ''}
+              className="w-full h-auto block"
+              loading="lazy"
+              style={{ aspectRatio: `${origW}/${origH}`, margin: 0, padding: 0 }}
+            />
+            {value.caption && (
+              <p className="text-xs italic mt-2 text-light" style={{fontFamily: 'Baskervville'}}>{value.caption}</p>
             )}
           </div>
-        ))}
-      </div>
-    </section>
-  )
+        )
+      },
+      spotifyEmbed: ({ value }: { value: { url: string; height?: number } }) => {
+        if (!value?.url) return null
 
+        const embedUrl = value.url.replace('open.spotify.com/', 'open.spotify.com/embed/')
+        const height = value.height || 380
 
-  const renderTextBlockSection = (section: SanityTextBlock) => (
-    <section key={`text-${Math.random()}`} className="prose-custom">
-      <PortableText 
-        value={section.content} 
-        components={{
-          block: {
-            normal: ({children}: any) => <p className="leading-normal mb-4 text-light">{children}</p>,
-            h1: ({children}: any) => <h1 className="text-lg font-bold mb-3 text-light">{children}</h1>,
-            h2: ({children}: any) => <h2 className="text-base font-semibold mb-2 text-light">{children}</h2>,
-            h3: ({children}: any) => <h3 className="text-sm font-semibold mb-2 text-light">{children}</h3>,
-          },
-          list: {
-            bullet: ({children}: any) => <ul className="text-sm space-y-1 mb-4 custom-bullet-list text-light">{children}</ul>,
-            number: ({children}: any) => <ol className="text-sm space-y-1 mb-4 list-decimal list-inside text-light">{children}</ol>,
-          },
-          listItem: {
-            bullet: ({children}: any) => <li className="text-light">{children}</li>,
-            number: ({children}: any) => <li className="text-light">{children}</li>,
-          },
-          marks: {
-            strong: ({children}: any) => <strong className="font-bold text-light">{children}</strong>,
-            em: ({children}: any) => <em className="italic text-light">{children}</em>,
-            smallCaps: ({children}: any) => <span className="font-sc text-light">{children}</span>,
-            link: ({children, value}: any) => (
-              <a href={value?.href} className="text-light underline hover:text-primary" target="_blank" rel="noopener noreferrer">
-                {children}
-              </a>
-            ),
-          },
-          types: {
-            image: ({ value }: { value: any }) => {
-              // Get original dimensions for aspect ratio
-              let origW: number | undefined = value?.asset?.metadata?.dimensions?.width
-              let origH: number | undefined = value?.asset?.metadata?.dimensions?.height
+        return (
+          <div className="my-6">
+            <iframe 
+              src={embedUrl}
+              width="100%"
+              height={height}
+              frameBorder="0"
+              allowTransparency={true}
+              allow="encrypted-media"
+              loading="lazy"
+              className="rounded-lg"
+            />
+          </div>
+        )
+      },
+    },
+  }
 
-              if (!origW || !origH) {
-                const ref: string | undefined = value?.asset?._ref
-                const match = ref?.match(/-(\d+)x(\d+)-/)
-                if (match) {
-                  origW = parseInt(match[1], 10)
-                  origH = parseInt(match[2], 10)
-                }
-              }
+  // Separate components for content pages with tighter spacing and smaller text
+  const contentPageTextComponents = {
+    block: {
+      normal: ({children}: any) => <p className="text-xs leading-tight mb-0 text-light">{children}</p>,
+      h1: ({children}: any) => <h1 className="text-sm font-bold mb-2 text-light">{children}</h1>,
+      h2: ({children}: any) => <h2 className="text-xs font-semibold mb-1 text-light">{children}</h2>,
+      h3: ({children}: any) => <h3 className="text-xs mb-1 font-sc mb-0 text-light">{children}</h3>,
+      blockquote: ({children}: any) => <blockquote className="font-mono text-xs text-light my-4 border-l-0 pl-6">{children}</blockquote>,
+    },
+    list: {
+      bullet: ({children}: any) => <ul className="text-xs space-y-0 mb-2 custom-bullet-list text-light">{children}</ul>,
+      number: ({children}: any) => <ol className="text-xs space-y-0 mb-2 list-decimal list-inside text-light">{children}</ol>,
+    },
+    listItem: {
+      bullet: ({children}: any) => <li className="text-light leading-tight">{children}</li>,
+      number: ({children}: any) => <li className="text-light leading-tight">{children}</li>,
+    },
+    marks: {
+      strong: ({children}: any) => <strong className="font-bold text-light">{children}</strong>,
+      em: ({children}: any) => <em className="italic text-light">{children}</em>,
+      smallCaps: ({children}: any) => <span className="font-sc text-light">{children}</span>,
+      link: ({children, value}: any) => (
+        <a href={value?.href} className="text-light underline hover:text-primary" target="_blank" rel="noopener noreferrer">
+          {children}
+        </a>
+      ),
+    },
+    types: {
+      image: ({ value }: { value: any }) => {
+        let origW: number | undefined = value?.asset?.metadata?.dimensions?.width
+        let origH: number | undefined = value?.asset?.metadata?.dimensions?.height
 
-              // Fall back to a sane default if we still cannot determine dimensions
-              origW = origW || 800
-              origH = origH || 600
+        if (!origW || !origH) {
+          const ref: string | undefined = value?.asset?._ref
+          const match = ref?.match(/-(\d+)x(\d+)-/)
+          if (match) {
+            origW = parseInt(match[1], 10)
+            origH = parseInt(match[2], 10)
+          }
+        }
 
-              return (
-                <div className="mb-6">
-                  <img
-                    src={urlFor(value).width(600).quality(80).url()}
-                    alt={value.alt || ''}
-                    className="w-full h-auto block"
-                    loading="lazy"
-                    style={{ aspectRatio: `${origW}/${origH}`, margin: 0, padding: 0 }}
-                  />
-                  {value.caption && (
-                    <p className="text-xs italic mt-2 text-light" style={{fontFamily: 'Baskervville'}}>{value.caption}</p>
-                  )}
-                </div>
-              )
-            },
-            spotifyEmbed: ({ value }: { value: { url: string; height?: number } }) => {
-              if (!value?.url) return null
+        origW = origW || 800
+        origH = origH || 600
 
-              // Convert Spotify URL to embed URL
-              const embedUrl = value.url.replace('open.spotify.com/', 'open.spotify.com/embed/')
-              const height = value.height || 380
+        return (
+          <div className="mb-4">
+            <img
+              src={urlFor(value).width(600).quality(80).url()}
+              alt={value.alt || ''}
+              className="w-full h-auto block"
+              loading="lazy"
+              style={{ aspectRatio: `${origW}/${origH}`, margin: 0, padding: 0 }}
+            />
+            {value.caption && (
+              <p className="text-xs italic mt-1 text-light" style={{fontFamily: 'Baskervville'}}>{value.caption}</p>
+            )}
+          </div>
+        )
+      },
+      spotifyEmbed: ({ value }: { value: { url: string; height?: number } }) => {
+        if (!value?.url) return null
 
-              return (
-                <div className="my-6">
-                  <iframe 
-                    src={embedUrl}
-                    width="100%"
-                    height={height}
-                    frameBorder="0"
-                    allowTransparency={true}
-                    allow="encrypted-media"
-                    loading="lazy"
-                    className="rounded-lg"
-                  />
-                </div>
-              )
-            },
-          },
-        }} 
-      />
-    </section>
-  )
+        const embedUrl = value.url.replace('open.spotify.com/', 'open.spotify.com/embed/')
+        const height = value.height || 380
+
+        return (
+          <div className="my-4">
+            <iframe 
+              src={embedUrl}
+              width="100%"
+              height={height}
+              frameBorder="0"
+              allowTransparency={true}
+              allow="encrypted-media"
+              loading="lazy"
+              className="rounded-lg"
+            />
+          </div>
+        )
+      },
+    },
+  }
 
   const renderTopMenuContent = () => {
     // Only render content when a menu tab is selected and top menu is open
@@ -244,38 +289,122 @@ export default function MobileTopMenu() {
       )
     }
 
-    // Default rendering for other pages (consulting, installations, about)
-    return (
-      <div ref={contentScrollRef} className="bg-black overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ height: contentPanelHeight }}>
-        <div className="p-4 pb-6">
-
-
-          <div className="space-y-8">
-            {currentPageData.sections?.length > 0 ? (
-              currentPageData.sections.map((section, index) => {
-                switch (section._type) {
-                  case 'categorySection':
-                    return renderCategorySection(section as SanityCategorySection)
-                  case 'textBlock':
-                    return renderTextBlockSection(section as SanityTextBlock)
-                  default:
-                    return (
-                      <div key={`unknown-${index}`} className="text-muted">
-                        <p className="text-sm">Unsupported section type: {section._type}</p>
-                      </div>
-                    )
-                }
-              })
-            ) : (
-              <div className="text-center text-muted">
-                <p className="text-sm">No content sections available</p>
-                <p className="text-xs mt-2">Add sections to this page in the Sanity Studio</p>
+    // Render based on page type
+    switch (currentPageData._type) {
+      case 'aboutPage':
+        return (
+          <div ref={contentScrollRef} className="bg-black overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ height: contentPanelHeight }}>
+            <div className="p-4 pb-6">
+              <div className="prose-custom">
+                {(currentPageData as SanityAboutPage).content && (
+                  <PortableText 
+                    value={(currentPageData as SanityAboutPage).content} 
+                    components={contentPageTextComponents} 
+                  />
+                )}
               </div>
-            )}
+            </div>
           </div>
-        </div>
-      </div>
-    )
+        )
+
+      case 'libraryPage': {
+        const libraryPage = currentPageData as SanityLibraryPage
+        return (
+          <div ref={contentScrollRef} className="bg-black overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ height: contentPanelHeight }}>
+            <div className="p-4 pb-6">
+              {libraryPage.description && (
+                <div className="prose-custom mb-8">
+                  <PortableText 
+                    value={libraryPage.description} 
+                    components={contentPageTextComponents} 
+                  />
+                </div>
+              )}
+              {libraryPage.sound && libraryPage.sound.length > 0 && (
+                <div className="space-y-4">
+                  <h2 className="text-lg font-semibold mb-4 text-light">Sound</h2>
+                  <ul className="space-y-3">
+                    {libraryPage.sound.map((ref, index) => (
+                      <li key={index} className="border-b border-light pb-3 last:border-0">
+                        <a 
+                          href={ref.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-light hover:text-muted transition-colors"
+                        >
+                          <h3 className="font-medium text-sm mb-1">{ref.title}</h3>
+                          {ref.description && (
+                            <p className="text-xs text-muted">{ref.description}</p>
+                          )}
+                          <p className="text-xs text-muted mt-1 break-all">{ref.url}</p>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      }
+
+      case 'worksPage': {
+        const worksPage = currentPageData as SanityWorksPage
+        return (
+          <div ref={contentScrollRef} className="bg-black overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ height: contentPanelHeight }}>
+            <div className="p-4 pb-6">
+              {worksPage.projects && worksPage.projects.length > 0 ? (
+                <div className="space-y-8">
+                  {worksPage.projects.map((project: any) => (
+                    <div key={project._id} className="border-b border-light pb-8 last:border-0">
+                      <h2 className="text-xl font-semibold mb-2 text-light">{project.title}</h2>
+                      {project.projectDetails && (
+                        <div className="prose-custom mb-4">
+                          <PortableText 
+                            value={project.projectDetails} 
+                            components={contentPageTextComponents} 
+                          />
+                        </div>
+                      )}
+                      {project.imageCarousel && project.imageCarousel.length > 0 && (
+                        <div className="mb-4">
+                          <ImageCarousel 
+                            images={project.imageCarousel} 
+                            projectTitle={project.title}
+                          />
+                        </div>
+                      )}
+                      {project.projectDescription && (
+                        <TruncatedDescription 
+                          value={project.projectDescription} 
+                          components={contentPageTextComponents} 
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center text-muted">
+                  <p className="text-sm">No projects available</p>
+                  <p className="text-xs mt-2">Add projects to this page in the Sanity Studio</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      }
+
+      default:
+        return (
+          <div ref={contentScrollRef} className="bg-black overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ height: contentPanelHeight }}>
+            <div className="p-6">
+              <div className="text-center text-muted">
+                <p className="text-sm">Unsupported page type: {(currentPageData as any)._type}</p>
+              </div>
+            </div>
+          </div>
+        )
+    }
   }
 
   return (

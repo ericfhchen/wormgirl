@@ -38,18 +38,20 @@ export default defineConfig({
             
             // Content Pages
             S.listItem()
-              .title('📄 Content Pages')
-              .child(
-                S.documentTypeList('contentPage')
-                  .title('Content Pages')
-                  .defaultOrdering([{ field: 'title', direction: 'asc' }])
-              ),
+              .title('About Page')
+              .child(S.documentTypeList('aboutPage').title('About Page')),
+            S.listItem()
+              .title('Library Page')
+              .child(S.documentTypeList('libraryPage').title('Library Page')),
+            S.listItem()
+              .title('Works Page')
+              .child(S.documentTypeList('worksPage').title('Works Page')),
               
             S.divider(),
             
             // Other document types
             ...S.documentTypeListItems().filter(
-              (item) => !['module', 'contentPage'].includes(item.getId()!)
+              (item) => !['module', 'aboutPage', 'libraryPage', 'worksPage', 'mux.videoAsset'].includes(item.getId()!)
             ),
           ]),
     }),
@@ -68,7 +70,7 @@ export default defineConfig({
           }
         }
         
-        if (params.type === 'contentPage') {
+        if (params.type === 'aboutPage' || params.type === 'libraryPage' || params.type === 'worksPage') {
           return {
             locations: [
               {

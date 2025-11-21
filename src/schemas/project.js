@@ -24,23 +24,7 @@ export default {
       title: 'Category',
       type: 'string',
       description: 'E.g., feature, installation, project, etc.',
-      options: {
-        list: [
-          { title: 'Feature', value: 'feature' },
-          { title: 'Installation', value: 'installation' },
-          { title: 'Project', value: 'project' },
-          { title: 'Exhibition', value: 'exhibition' },
-          { title: 'Performance', value: 'performance' },
-          { title: 'Other', value: 'other' }
-        ]
-      },
       validation: Rule => Rule.required()
-    },
-    {
-      name: 'order',
-      title: 'Order',
-      type: 'number',
-      description: 'Display order for this project'
     },
     {
       name: 'projectDetails',
@@ -81,6 +65,49 @@ export default {
       title: 'Project Description',
       type: 'blockContent',
       description: 'Longer text, links to press, documentation, etc.'
+    },
+    {
+      name: 'projectLinks',
+      title: 'Project Links',
+      type: 'array',
+      of: [
+        {
+          type: 'object',
+          fields: [
+            {
+              name: 'label',
+              title: 'Link Label',
+              type: 'string',
+              description: 'Text to display for the link',
+              validation: Rule => Rule.required()
+            },
+            {
+              name: 'url',
+              title: 'URL',
+              type: 'url',
+              description: 'Full URL (e.g., https://example.com)',
+              validation: Rule => Rule.required().uri({
+                allowRelative: false,
+                scheme: ['http', 'https', 'mailto', 'tel']
+              })
+            }
+          ],
+          preview: {
+            select: {
+              label: 'label',
+              url: 'url'
+            },
+            prepare(selection) {
+              const { label, url } = selection
+              return {
+                title: label || 'Untitled Link',
+                subtitle: url || 'No URL set'
+              }
+            }
+          }
+        }
+      ],
+      description: 'Additional links (press, documentation, etc.) displayed below the description'
     }
   ],
   preview: {
@@ -93,25 +120,17 @@ export default {
       const { title, category, media } = selection
       return {
         title: title,
-        subtitle: category ? category.charAt(0).toUpperCase() + category.slice(1) : 'No category set',
+        subtitle: category || 'No category set',
         media: media
       }
     }
   },
   orderings: [
     {
-      title: 'Order',
-      name: 'orderAsc',
-      by: [
-        {field: 'order', direction: 'asc'}
-      ]
-    },
-    {
       title: 'Category',
       name: 'categoryAsc',
       by: [
-        {field: 'category', direction: 'asc'},
-        {field: 'order', direction: 'asc'}
+        {field: 'category', direction: 'asc'}
       ]
     }
   ]
