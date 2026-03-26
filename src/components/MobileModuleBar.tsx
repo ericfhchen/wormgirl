@@ -80,7 +80,7 @@ export default function MobileModuleBar() {
     : ''
 
   // Match bar animation timing with content panel (slower when panel visible)
-  const barDurationClass = pageState.contentPanelStage === 'hidden' ? 'duration-300' : 'duration-500'
+  const barDurationClass = 'duration-500'
 
   // Update CSS custom properties that expose the bar's height and its current
   // offset from the bottom of the viewport so other components (like the
@@ -143,7 +143,8 @@ export default function MobileModuleBar() {
     <div
       ref={barRef}
       id="mobile-module-bar"
-      className={`md:hidden fixed bottom-0 left-0 right-0 z-40 transition-transform ease-in-out ${barDurationClass} bg-dark ${barOffsetClass}`}
+      className={`md:hidden fixed bottom-0 left-0 right-0 z-40 transition-transform ${barDurationClass} bg-dark ${barOffsetClass}`}
+      style={{ transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)' }}
       onClick={() => {
         if (pageState.isTopMenuOpen) {
           // When closing top menu, also collapse the bottom content panel if it's showing content

@@ -3,11 +3,9 @@
 import { usePageState } from '@/context/PageStateContext'
 import { useRef, useState, useEffect } from 'react'
 import { useContentPages } from '@/context/ContentPagesContext'
-import { urlFor, type SanityAboutPage, type SanityLibraryPage, type SanityWorksPage } from '@/lib/sanity'
+import { urlFor, type SanityAboutPage, type SanityLibraryPage } from '@/lib/sanity'
 import { PortableText } from '@portabletext/react'
 import Image from 'next/image'
-import ImageCarousel from './ImageCarousel'
-import TruncatedDescription from './TruncatedDescription'
 
 export default function MobileTopMenu() {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -135,11 +133,11 @@ export default function MobileTopMenu() {
         origH = origH || 600
 
         return (
-          <div className="mb-6">
+          <div className="mb-6 mx-auto text-center">
             <img
               src={urlFor(value).width(600).quality(80).url()}
               alt={value.alt || ''}
-              className="w-full h-auto block"
+              className="max-w-full h-auto block mx-auto"
               loading="lazy"
               style={{ aspectRatio: `${origW}/${origH}`, margin: 0, padding: 0 }}
             />
@@ -180,7 +178,9 @@ export default function MobileTopMenu() {
       h1: ({children}: any) => <h1 className="text-sm font-bold mb-2 text-light">{children}</h1>,
       h2: ({children}: any) => <h2 className="text-xs font-semibold mb-1 text-light">{children}</h2>,
       h3: ({children}: any) => <h3 className="text-xs mb-1 font-sc mb-0 text-light">{children}</h3>,
-      blockquote: ({children}: any) => <blockquote className="font-mono text-xs text-light my-4 border-l-0 pl-6">{children}</blockquote>,
+      blockquote: ({children}: any) => <blockquote className="font-mono text-[0.55rem] leading-normal text-light my-4 border-l-0 pl-6">{children}</blockquote>,
+      indent: ({children}: any) => <p className="text-xs leading-tight mb-0 text-light pl-6">{children}</p>,
+      quote2: ({children}: any) => <p className="text-[0.65rem] italic leading-tight mb-0 text-light pl-6">{children}</p>,
     },
     list: {
       bullet: ({children}: any) => <ul className="text-xs space-y-0 mb-2 custom-bullet-list text-light">{children}</ul>,
@@ -218,11 +218,11 @@ export default function MobileTopMenu() {
         origH = origH || 600
 
         return (
-          <div className="mb-4">
+          <div className="mb-4 mx-auto text-center">
             <img
               src={urlFor(value).width(600).quality(80).url()}
               alt={value.alt || ''}
-              className="w-full h-auto block"
+              className="max-w-full h-auto block mx-auto"
               loading="lazy"
               style={{ aspectRatio: `${origW}/${origH}`, margin: 0, padding: 0 }}
             />
@@ -341,52 +341,6 @@ export default function MobileTopMenu() {
                       </li>
                     ))}
                   </ul>
-                </div>
-              )}
-            </div>
-          </div>
-        )
-      }
-
-      case 'worksPage': {
-        const worksPage = currentPageData as SanityWorksPage
-        return (
-          <div ref={contentScrollRef} className="bg-black overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" style={{ height: contentPanelHeight }}>
-            <div className="p-4 pb-6">
-              {worksPage.projects && worksPage.projects.length > 0 ? (
-                <div className="space-y-8">
-                  {worksPage.projects.map((project: any) => (
-                    <div key={project._id} className="border-b border-light pb-8 last:border-0">
-                      <h2 className="text-xl font-semibold mb-2 text-light">{project.title}</h2>
-                      {project.projectDetails && (
-                        <div className="prose-custom mb-4">
-                          <PortableText 
-                            value={project.projectDetails} 
-                            components={contentPageTextComponents} 
-                          />
-                        </div>
-                      )}
-                      {project.imageCarousel && project.imageCarousel.length > 0 && (
-                        <div className="mb-4">
-                          <ImageCarousel 
-                            images={project.imageCarousel} 
-                            projectTitle={project.title}
-                          />
-                        </div>
-                      )}
-                      {project.projectDescription && (
-                        <TruncatedDescription 
-                          value={project.projectDescription} 
-                          components={contentPageTextComponents} 
-                        />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center text-muted">
-                  <p className="text-sm">No projects available</p>
-                  <p className="text-xs mt-2">Add projects to this page in the Sanity Studio</p>
                 </div>
               )}
             </div>

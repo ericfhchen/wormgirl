@@ -32,7 +32,7 @@ module.exports = {
       },
       fontFamily: {
         serif: ['Baskervville', 'Times New Roman', 'serif'],
-        sc: ['Baskervville SC', 'Baskervville', 'Times New Roman', 'serif'],
+        sc: ['Baskervville SC', 'Times New Roman', 'serif'],
         mono: ['Courier', 'Courier New', 'monospace'],
       },
       fontWeight: {
@@ -42,7 +42,7 @@ module.exports = {
         'extrabold': '700', // Map extrabold to bold since Baskervville doesn't have extrabold
       },
       spacing: {
-        'sidebar': '200px',
+        'sidebar': '180px',
         'video-controls': '60px',
       },
       aspectRatio: {
@@ -52,9 +52,9 @@ module.exports = {
       animation: {
         'fade-in': 'fadeIn 0.5s ease-in-out',
         'slide-in': 'slideIn 0.3s ease-out',
-        'slide-in-right': 'slideInRight 0.4s ease-in-out',
-        'slide-in-left': 'slideInLeft 0.4s ease-in-out',
-        'slide-out-right': 'slideOutRight 0.4s ease-in-out',
+        'slide-in-right': 'slideInRight 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+        'slide-in-left': 'slideInLeft 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+        'slide-out-right': 'slideOutRight 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
         'content-fade-in': 'contentFadeIn 0.4s ease-in-out 0.4s both',
         'pulse-slow': 'pulse 3s infinite',
       },

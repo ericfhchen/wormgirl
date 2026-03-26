@@ -16,6 +16,7 @@ import MobileModuleBar from '@/components/MobileModuleBar'
 import { useModules } from '@/context/ModulesContext'
 import { useVideo } from '@/context/VideoContext'
 import PreLoader from '@/components/PreLoader'
+import { usePathname } from 'next/navigation'
 // No persistence – intro overlay resets on each page load
 
 export default function RootLayout({
@@ -23,13 +24,22 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  const pathname = usePathname()
+  const isStudio = pathname.startsWith('/studio')
   const [introDone, setIntroDone] = React.useState(false)
 
-  // Intro overlay shown by default until user finishes it
-
-
   const handleIntroFinish = () => {
+    console.log('[Layout] handleIntroFinish called — unmounting IntroOverlay')
     setIntroDone(true)
+  }
+
+  // Studio route — render children only, no app UI
+  if (isStudio) {
+    return (
+      <html lang="en">
+        <body>{children}</body>
+      </html>
+    )
   }
 
   return (
@@ -59,11 +69,13 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   const { state: modulesState } = useModules()
   const { state: videoState, dispatch: videoDispatch } = useVideo()
 
-  // Calculate sidebar position based on panel size
-  const getSidebarRightPosition = () => {
-    if (!isPanelVisibleDesktop) return '0px'
+  // Calculate sidebar offset as a translateX value so it animates on the
+  // compositor (same pipeline as the content panel's transform), preventing
+  // the gap that appears when mixing layout-based `right` with `transform`.
+  const getSidebarTranslateX = () => {
+    if (!isPanelVisibleDesktop) return 'translateX(0)'
     // Use 80vw when maximized, otherwise 384px (w-96)
-    return pageState.isPanelMaximized ? '80vw' : '384px'
+    return pageState.isPanelMaximized ? 'translateX(-80vw)' : 'translateX(-384px)'
   }
 
   // No automatic Prelude start – handled by user click
@@ -72,7 +84,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
     <div className="relative h-screen bg-dark overflow-hidden">
       {/* Video Player – fills viewport minus sidebar on desktop */}
       <div
-        className="absolute top-0 left-0 h-full bg-black w-full lg:w-[calc(100vw-200px)]"
+        className="absolute top-0 left-0 h-full bg-black w-full"
       >
         <VideoPlayerStacked />
       </div>
@@ -83,11 +95,11 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Desktop Sidebar */}
-      <aside 
-        className="hidden md:block absolute top-0 h-full border-l border-light overflow-hidden z-20 bg-dark/95 backdrop-blur-sm w-sidebar" 
-        style={{ 
-          right: getSidebarRightPosition(),
-          transition: 'right 0.3s ease-in-out'
+      <aside
+        className="hidden md:block absolute top-0 right-0 h-full border-l border-light overflow-hidden z-20 bg-dark backdrop-blur-sm w-sidebar"
+        style={{
+          transform: getSidebarTranslateX(),
+          transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       >
         <Sidebar />

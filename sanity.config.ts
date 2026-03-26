@@ -37,15 +37,12 @@ export default defineConfig({
             S.listItem()
               .title('Library Page')
               .child(S.documentTypeList('libraryPage').title('Library Page')),
-            S.listItem()
-              .title('Works Page')
-              .child(S.documentTypeList('worksPage').title('Works Page')),
-              
+
             S.divider(),
-            
+
             // Other document types
             ...S.documentTypeListItems().filter(
-              (item) => !['module', 'aboutPage', 'libraryPage', 'worksPage', 'mux.videoAsset'].includes(item.getId()!)
+              (item) => !['module', 'aboutPage', 'libraryPage', 'mux.videoAsset'].includes(item.getId()!)
             ),
           ]),
     }),

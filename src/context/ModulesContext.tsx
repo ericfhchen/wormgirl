@@ -51,6 +51,7 @@ export function ModulesProvider({ children }: { children: ReactNode }) {
             idleVideo {
               asset->
             },
+            videoEndTimecode,
             tabImage {
               asset-> {
                 url

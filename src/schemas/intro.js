@@ -4,10 +4,16 @@ export default {
   type: 'document',
   fields: [
     {
-      name: 'idleVideo',
-      title: 'Idle Video',
+      name: 'video',
+      title: 'Intro Video',
       type: 'mux.video',
-      description: 'Video clip that loops on the landing page intro.'
+      description: 'Full intro clip: camera zoom-in, then baked ping-pong loop at the end.'
+    },
+    {
+      name: 'videoEndTimecode',
+      title: 'Video End Timecode',
+      type: 'string',
+      description: 'Timecode of the last frame of the video (e.g. 00;00;15;02 at 30fps). The idle loop starts 3s before this. Format: HH;MM;SS;FF'
     },
     {
       name: 'buttonLabel',
@@ -15,6 +21,13 @@ export default {
       type: 'string',
       description: 'Label for the intro button (default "PRELUDE")',
       initialValue: 'PRELUDE'
+    },
+    {
+      name: 'idleVideo',
+      title: 'Idle Video (legacy)',
+      type: 'mux.video',
+      description: 'Legacy idle clip. Use video + mainEnd instead.',
+      hidden: true
     }
   ],
   preview: {

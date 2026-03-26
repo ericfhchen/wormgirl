@@ -105,33 +105,30 @@ export function VideoProvider({ children }: { children: ReactNode }) {
 
     // Special handling while the current video is looping its idle clip
     if (state.isIdle) {
-      // If we're in the intro (-1) and user selects any module, switch immediately but stay idle/paused
+      // From the intro (-1)
       if (state.currentModuleIndex === -1) {
-        dispatch({ type: 'SET_MODULE', payload: index })
-        // Keep the newly selected module in idle mode so its idle clip loops
-        dispatch({ type: 'SET_IDLE', payload: true })
-        dispatch({ type: 'PAUSE' })
+        if (index === 0) {
+          // Sequential (prelude) — stay idle/paused; VideoPlayerStacked does a seamless cut
+          dispatch({ type: 'SET_MODULE', payload: index })
+          dispatch({ type: 'SET_IDLE', payload: true })
+          dispatch({ type: 'PAUSE' })
+        } else {
+          // Out-of-sequence — VideoPlayerStacked will fade-to-black then play
+          dispatch({ type: 'SET_MODULE', payload: index })
+          dispatch({ type: 'PLAY' })
+        }
         return
       }
 
       const current = state.currentModuleIndex
 
-      // 1. Clicking the SAME module: keep looping its idle clip (no changes)
+      // Clicking the SAME module: keep looping its idle clip (no changes)
       if (index === current) {
         return
       }
 
-      // 2. Clicking the *next* sequential module → queue it; let idle loop finish first
-      if (index === current + 1) {
-        dispatch({ type: 'QUEUE_MODULE', payload: index })
-        return
-      }
-
-      // 3. Any other module (out-of-order or previous) → switch immediately
-      dispatch({ type: 'SET_MODULE', payload: index })
-      // Keep playback paused so VideoPlayerStacked can perform a clean fade to the
-      // new module's idle clip without briefly showing the main video.
-      dispatch({ type: 'PAUSE' })
+      // Any other module — queue it; let the idle loop finish before switching
+      dispatch({ type: 'QUEUE_MODULE', payload: index })
       return
     }
 

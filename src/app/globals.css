@@ -46,11 +46,11 @@
   font-display: swap;
 }
 
-/* Baskervville SC - SemiBold */
+/* Baskervville SC - Regular */
 @font-face {
   font-family: 'Baskervville SC';
-  src: url('../../public/fonts/baskervville-sc-latin-600-normal.woff2') format('woff2');
-  font-weight: 600;
+  src: url('../../public/fonts/baskervville-sc-latin-400-normal.woff2') format('woff2');
+  font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
@@ -75,6 +75,11 @@
 
 html, body {
   overflow-anchor: none;
+}
+
+/* Disable lnum for SC font so numbers render at small-cap height */
+.font-sc {
+  font-feature-settings: "rlig" 1, "calt" 1, "lnum" 0;
 }
 
 @layer components {

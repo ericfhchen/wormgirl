@@ -6,13 +6,11 @@ import { usePageState } from '@/context/PageStateContext'
 import { useVideo } from '@/context/VideoContext'
 import { useModules } from '@/context/ModulesContext'
 import { useContentPages } from '@/context/ContentPagesContext'
-import { urlFor, type SanityAboutPage, type SanityLibraryPage, type SanityWorksPage } from '@/lib/sanity'
+import { urlFor, type SanityAboutPage, type SanityLibraryPage } from '@/lib/sanity'
 import { useFootnotes } from '@/lib/hooks/useFootnotes'
 import { useGlossary } from '@/lib/hooks/useGlossary'
 import useIsMobile from '@/lib/hooks/useIsMobile'
 import Image from 'next/image'
-import ImageCarousel from './ImageCarousel'
-import TruncatedDescription from './TruncatedDescription'
 import aboutPage from '@/schemas/aboutPage'
 
 export default function ContentPanel() {
@@ -32,11 +30,21 @@ export default function ContentPanel() {
   const [isHidden, setIsHidden] = useState(false)
   const [shouldFadeIn, setShouldFadeIn] = useState(false)
 
+  // Desktop cross-fade state: 'idle' | 'fading-out' | 'fading-in'
+  const [desktopFade, setDesktopFade] = useState<'idle' | 'fading-out' | 'fading-in'>('idle')
+
+  // Deferred module index / page: only updates after fade-out completes so old
+  // content stays visible during fade-out and new content fades in cleanly.
+  const [displayedModuleIndex, setDisplayedModuleIndex] = useState<number>(0)
+  const [displayedPage, setDisplayedPage] = useState(pageState.currentPage)
+  const [displayedPageSlug, setDisplayedPageSlug] = useState(pageState.currentPageSlug)
+
   // State for panel width expansion (desktop)
   const [isPanelExpanded, setIsPanelExpanded] = useState(false)
 
   const prevContentKeyRef = useRef(contentKey)
   const prevStageRef = useRef(stage)
+  const isFirstRenderRef = useRef(true)
 
   // Track initial Y position for swipe gesture detection (must be before early returns)
   const touchStartYRef = useRef<number | null>(null)
@@ -71,11 +79,80 @@ export default function ContentPanel() {
     }
   }, [contentKey, isMobile, stage])
 
+  // Desktop cross-fade: when contentKey changes, fade out then swap content then fade in.
+  // Timings are synchronised with the video overlay (300ms fade-in, hold, 300ms fade-out).
+  useEffect(() => {
+    if (isMobile) return
+    // Skip the initial render — content should just appear
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false
+      // Sync displayed state on first render
+      setDisplayedModuleIndex(selectedModuleIndex)
+      setDisplayedPage(pageState.currentPage)
+      setDisplayedPageSlug(pageState.currentPageSlug)
+      return
+    }
+
+    // Content-to-content transitions don't need video-sync timing.
+    // Timers must respect the 300ms CSS transition duration — swap content
+    // only after the fade-out animation fully completes.
+    const isContentSwitch = displayedPage === 'content' && pageState.currentPage === 'content'
+    const fadeOutDuration = isContentSwitch ? 320 : 320
+    const fadeInDelay = isContentSwitch ? 0 : 300 // 0 = start fade-in via rAF after swap
+    const doneDuration = isContentSwitch ? 700 : 920
+
+    // Start fade-out (old content still visible)
+    setDesktopFade('fading-out')
+
+    let rafId1: number | null = null
+    let rafId2: number | null = null
+
+    // Swap content once it's fully transparent
+    const swapTimer = setTimeout(() => {
+      setDisplayedModuleIndex(selectedModuleIndex)
+      setDisplayedPage(pageState.currentPage)
+      setDisplayedPageSlug(pageState.currentPageSlug)
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTo({ top: 0 })
+      }
+
+      if (isContentSwitch) {
+        // Double-rAF: wait for browser to paint new content at opacity 0,
+        // then start fade-in. This prevents jank from heavier pages.
+        rafId1 = requestAnimationFrame(() => {
+          rafId2 = requestAnimationFrame(() => {
+            setDesktopFade('fading-in')
+          })
+        })
+      }
+    }, fadeOutDuration)
+
+    // Start fade-in (video-synced path only; content path uses rAF above)
+    const fadeInTimer = !isContentSwitch ? setTimeout(() => {
+      setDesktopFade('fading-in')
+    }, fadeOutDuration + fadeInDelay) : null
+
+    // Transition complete
+    const doneTimer = setTimeout(() => {
+      setDesktopFade('idle')
+    }, doneDuration)
+
+    return () => {
+      clearTimeout(swapTimer)
+      if (fadeInTimer) clearTimeout(fadeInTimer)
+      clearTimeout(doneTimer)
+      if (rafId1) cancelAnimationFrame(rafId1)
+      if (rafId2) cancelAnimationFrame(rafId2)
+    }
+  }, [contentKey, isMobile])
+
   // State to handle closing animation
   const [isVisible, setIsVisible] = useState(false)
   const [isAnimatingOut, setIsAnimatingOut] = useState(false)
 
-  // Handle panel visibility and animation states
+  // Handle panel visibility — `isVisible` keeps the element in the DOM
+  // during the close transition so the slide-out is visible, then hides
+  // it after the animation completes for accessibility/perf.
   useEffect(() => {
     const shouldBeVisible = pageState.contentPanelStage !== 'hidden'
 
@@ -83,16 +160,15 @@ export default function ContentPanel() {
       setIsVisible(true)
       setIsAnimatingOut(false)
     } else if (isVisible) {
-      // Start closing animation
+      // Panel is closing — keep visible during the transition
       setIsAnimatingOut(true)
-      // Reset all expand states when closing
       setPanelMaximized(false)
       setIsPanelExpanded(false)
-      // Hide after animation completes
+      // Set visibility:hidden after transition completes
       const timeout = setTimeout(() => {
         setIsVisible(false)
         setIsAnimatingOut(false)
-      }, 300)
+      }, 500)
 
       return () => clearTimeout(timeout)
     }
@@ -113,29 +189,35 @@ export default function ContentPanel() {
   // the DOM instance stable across renders.
   useEffect(() => {
     setContentKey(prev => prev + 1)
-    // Reset scroll position to top when content changes
-    if (scrollContainerRef.current) {
+    // On mobile, reset scroll immediately; on desktop the fade effect handles it
+    if (isMobile && scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({ top: 0 })
     }
     setPanelMaximized(false)
-  }, [selectedModuleIndex, pageState.currentPage])
+  }, [selectedModuleIndex, pageState.currentPage, pageState.currentPageSlug])
 
   // Get current module from centralized context
-  const rawModule = getModule(selectedModuleIndex)
+  // On desktop, use the deferred displayedModuleIndex so old content stays
+  // visible during fade-out; on mobile, use selectedModuleIndex directly.
+  const effectiveModuleIndex = isMobile ? selectedModuleIndex : displayedModuleIndex
+  const rawModule = getModule(effectiveModuleIndex)
 
   const currentModule = useMemo(() => rawModule, [rawModule?._id])
+
+  // Use the effective page type (deferred on desktop) for content decisions
+  const effectivePageType = isMobile ? pageState.currentPage : displayedPage
 
   // Memoize footnotes to prevent new array creation on every render
   // Always provide an empty array to ensure hooks are called consistently
   const footnotes = useMemo(() => {
-    return (pageState.currentPage === 'module' && currentModule?.footnotes) ? currentModule.footnotes : []
-  }, [pageState.currentPage, currentModule?.footnotes])
+    return (effectivePageType === 'module' && currentModule?.footnotes) ? currentModule.footnotes : []
+  }, [effectivePageType, currentModule?.footnotes])
 
   // Memoize glossary terms to prevent new array creation on every render
   // Always provide an empty array to ensure hooks are called consistently
   const glossaryTerms = useMemo(() => {
-    return (pageState.currentPage === 'module' && currentModule?.glossary) ? currentModule.glossary : []
-  }, [pageState.currentPage, currentModule?.glossary])
+    return (effectivePageType === 'module' && currentModule?.glossary) ? currentModule.glossary : []
+  }, [effectivePageType, currentModule?.glossary])
 
   // ----- Footnotes / glossary hooks -----
   // Always call these hooks with consistent parameters
@@ -165,7 +247,7 @@ export default function ContentPanel() {
   // Only process on module pages to avoid processing null content
   // ------------------------------------------------------------
   useEffect(() => {
-    if (pageState.currentPage === 'module' && currentModule?.body) {
+    if (effectivePageType === 'module' && currentModule?.body) {
       const walkContent = (content: any[]) => {
         content.forEach(item => {
           if (item._type === 'block' && item.markDefs) {
@@ -188,7 +270,7 @@ export default function ContentPanel() {
       // refs collected → trigger one re-render to show definitions
       setRefsVersion(v => v + 1)
     }
-  }, [pageState.currentPage, currentModule?.body]) // Remove registration functions from dependencies
+  }, [effectivePageType, currentModule?.body]) // Remove registration functions from dependencies
 
   // Memoize referenced terms to prevent unnecessary re-renders
   const referencedGlossaryTerms = useMemo(
@@ -208,7 +290,9 @@ export default function ContentPanel() {
       h1: ({children}: any) => <h1 className="text-lg font-bold mb-3 text-light">{children}</h1>,
       h2: ({children}: any) => <h2 className="text-base font-semibold mb-2 text-light">{children}</h2>,
       h3: ({children}: any) => <h3 className="text-md mb-1 font-sc mb-0 text-light">{children}</h3>,
-      blockquote: ({children}: any) => <blockquote className="font-mono text-sm text-light my-10 border-l-0 pl-12">{children}</blockquote>,
+      blockquote: ({children}: any) => <blockquote className="font-mono text-[0.65rem] leading-normal text-light my-10 border-l-0 pl-12">{children}</blockquote>,
+      indent: ({children}: any) => <p className="leading-normal mb-4 text-light pl-12">{children}</p>,
+      quote2: ({children}: any) => <p className="text-xs italic leading-normal mb-4 text-light pl-12">{children}</p>,
     },
     list: {
       bullet: ({children}: any) => <ul className="text-sm space-y-1 mb-4 custom-bullet-list text-light">{children}</ul>,
@@ -294,11 +378,11 @@ export default function ContentPanel() {
         const displayH = Math.round(displayW * origH / origW)
         
         return (
-          <div className={`mt-10 mb-16 ${isPanelExpanded ? 'max-w-[460px]' : ''}`}>
+          <div className={`mt-10 mb-16 mx-auto text-center ${isPanelExpanded ? 'max-w-[460px]' : ''}`}>
             <img
               src={urlFor(value).width(displayW).quality(80).url()}
               alt={value.alt || ''}
-              className="w-full h-auto block"
+              className="max-w-full h-auto block mx-auto"
               loading="lazy"
               style={{ aspectRatio: `${origW}/${origH}`, margin: 0, padding: 0 }}
             />
@@ -340,7 +424,9 @@ export default function ContentPanel() {
       h1: ({children}: any) => <h1 className="text-sm font-bold mb-2 text-light">{children}</h1>,
       h2: ({children}: any) => <h2 className="text-sm font-semibold mb-1 text-light">{children}</h2>,
       h3: ({children}: any) => <h3 className="text-sm mb-1 font-sc mb-0 text-light">{children}</h3>,
-      blockquote: ({children}: any) => <blockquote className="font-mono text-xs text-light my-4 border-l-0 pl-6">{children}</blockquote>,
+      blockquote: ({children}: any) => <blockquote className="font-mono text-[0.55rem] leading-normal text-light my-4 border-l-0 pl-6">{children}</blockquote>,
+      indent: ({children}: any) => <p className="text-sm leading-snug mb-4 text-light pl-6">{children}</p>,
+      quote2: ({children}: any) => <p className="text-xs italic leading-snug mb-4 text-light pl-6">{children}</p>,
     },
     list: {
       bullet: ({children}: any) => <ul className="text-xs space-y-0 mb-2 custom-bullet-list text-light">{children}</ul>,
@@ -416,11 +502,11 @@ export default function ContentPanel() {
         const displayH = Math.round(displayW * origH / origW)
         
         return (
-          <div className={`mt-4 mb-6 ${isPanelExpanded ? 'max-w-[460px]' : ''}`}>
+          <div className={`mt-4 mb-6 mx-auto text-center ${isPanelExpanded ? 'max-w-[460px]' : ''}`}>
             <img
               src={urlFor(value).width(displayW).quality(80).url()}
               alt={value.alt || ''}
-              className="w-full h-auto block"
+              className="max-w-full h-auto block mx-auto"
               loading="lazy"
               style={{ aspectRatio: `${origW}/${origH}`, margin: 0, padding: 0 }}
             />
@@ -489,31 +575,23 @@ export default function ContentPanel() {
     }
 
     return (
-      <div className="p-4 pb-24 md:pb-16">
+      <div className="p-4 pt-8 pb-24 md:pb-16">
         <div className="max-w-none">
           
           <header className="mb-6">
-            <div className="flex items-center text-sm uppercase text-light mb-1">
-              <span>
-                {currentModule.order === 0
-                  ? "Prelude"
-                  : `Chapter ${["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][currentModule.order - 1] || currentModule.order}`}
-              </span>
-              {typeof currentModule.order === "number" && currentModule.order > 0 && currentModule.timeline && (
+            <div className="flex items-baseline text-xl font-serif font-normal text-light mb-4">
+              {currentModule.order === 0 ? (
+                <span className="text-base uppercase tracking-wide">Prelude</span>
+              ) : (
                 <>
-                  <div className="w-1 h-1 bg-light rounded-full mx-3"></div>
-                  <span>{currentModule.timeline}</span>
+                  <span>{["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][currentModule.order - 1] || currentModule.order}</span>
+                  <span className="ml-3 text-base uppercase tracking-wide">{currentModule.articleHeading}</span>
                 </>
               )}
             </div>
-            <h1 className="text-3xl font-bold font-serif italic text-light mb-2">
-              {currentModule.articleHeading}
+            <h1 className="text-3xl font-bold font-serif italic text-light mb-2 pl-12">
+              {currentModule.order === 0 ? currentModule.articleHeading : currentModule.title}
             </h1>
-            {currentModule.excerpt && (
-              <p className="text-muted text-sm">
-                {currentModule.excerpt}
-              </p>
-            )}
           </header>
 
           <div className="prose-custom text-sm">
@@ -532,7 +610,7 @@ export default function ContentPanel() {
                         const isHighlighted = highlightedGlossaryId === term.id
                         
                         return (
-                        <div key={term.id} className="text-sm">
+                        <div key={term.id} className="text-xs">
                           <div className={`text-light leading-normal ${isHighlighted ? 'glossary-highlight-active' : ''}`}>
                             <button
                               id={`glossary-${term.id}`}
@@ -544,14 +622,6 @@ export default function ContentPanel() {
                               className="cursor-pointer font-serif font-bold inline-flex items-baseline hover:underline hover:decoration-dotted hover:underline-offset-2 group text-light hover:text-muted transition-colors"
                               title={`Return to reference for ${term.term}`}
                             >
-                              <svg
-                                className="w-3 h-3 mr-1 text-light group-hover:text-muted transition-colors"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
-                              </svg>
                               <span>
                                 {term.term}
                               </span>
@@ -596,7 +666,7 @@ export default function ContentPanel() {
                         const isHighlighted = highlightedFootnoteId === footnote.id
                         
                         return (
-                        <div key={footnote.id} className="text-sm">
+                        <div key={footnote.id} className="text-xs">
                           <p className={`text-light leading-normal ${isHighlighted ? 'glossary-highlight-active' : ''}`}>
                             <button
                               id={`footnote-${footnote.id}`}
@@ -608,14 +678,6 @@ export default function ContentPanel() {
                               className="cursor-pointer font-serif font-semibold mr-1 inline-flex items-baseline hover:underline hover:decoration-dotted hover:underline-offset-2 group text-light hover:text-muted transition-colors"
                               title={`Return to reference ${footnote.number}`}
                             >
-                              <svg
-                                className="w-3 h-3 mr-1 text-light group-hover:text-muted transition-colors"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
-                              </svg>
                               <span>
                                 [{footnote.number}]
                               </span>
@@ -672,8 +734,10 @@ export default function ContentPanel() {
       )
     }
 
-    const currentPageData = pageState.currentPageSlug 
-      ? getPageBySlug(pageState.currentPageSlug)
+    // On desktop use the deferred slug so old page stays visible during fade-out
+    const effectiveSlug = isMobile ? pageState.currentPageSlug : displayedPageSlug
+    const currentPageData = effectiveSlug
+      ? getPageBySlug(effectiveSlug)
       : null
     
     if (!currentPageData) {
@@ -681,7 +745,7 @@ export default function ContentPanel() {
         <div className="p-6">
           <div className="text-center text-muted">
             <p className="text-sm">Page not found</p>
-            <p className="text-xs mt-2">No content available for {pageState.currentPageSlug}</p>
+            <p className="text-xs mt-2">No content available for {effectiveSlug}</p>
           </div>
         </div>
       )
@@ -691,7 +755,7 @@ export default function ContentPanel() {
     switch (currentPageData._type) {
       case 'aboutPage':
         return (
-          <div className="p-4 pb-24 md:pb-16">
+          <div className="p-4 pt-8 pb-24 md:pb-16">
             <h1 className="text-3xl font-bold font-serif italic text-light pb-8">
               {currentPageData.title}
             </h1>
@@ -725,7 +789,7 @@ export default function ContentPanel() {
                       key={index} 
                       className="w-full border-t border-light py-3 last:border-b"
                     >
-                      <div className="flex items-center">
+                      <div className="flex items-baseline">
                         <span className="text-sm text-light font-mono">{counter}</span>
                         <a 
                           href={item.url} 
@@ -745,7 +809,7 @@ export default function ContentPanel() {
         }
         
         return (
-          <div className="p-4 pb-24 md:pb-16">
+          <div className="p-4 pt-8 pb-24 md:pb-16">
             <h1 className="text-3xl font-bold font-serif italic text-light pb-8">
               {libraryPage.title}
             </h1>
@@ -760,115 +824,14 @@ export default function ContentPanel() {
               )}
               {libraryPage.sound && libraryPage.sound.length > 0 && (
                 <div className="mb-16">
-                  <h2 className="text-lg font-semibold mb-4 text-light">Sound</h2>
+                  <h2 className="text-lg font-normal uppercase mb-4 text-light">Sound</h2>
                   {renderLinkList(libraryPage.sound)}
                 </div>
               )}
               {libraryPage.books && libraryPage.books.length > 0 && (
                 <div className="mb-16">
-                  <h2 className="text-lg font-semibold mb-4 text-light">Books</h2>
+                  <h2 className="text-lg font-normal uppercase mb-4 text-light">Books</h2>
                   {renderLinkList(libraryPage.books)}
-                </div>
-              )}
-            </div>
-          </div>
-        )
-      }
-
-      case 'worksPage': {
-        const worksPage = currentPageData as SanityWorksPage
-        return (
-          <div className="p-4 pb-24 md:pb-16">
-            <h1 className="text-3xl font-bold font-serif italic text-light pb-8">
-              {worksPage.title}
-            </h1>
-            <div 
-              className="max-w-none"
-              style={{
-                // Ensure stable width regardless of scrollbar
-                width: '100%',
-                boxSizing: 'border-box',
-                // Prevent width recalculation
-                minWidth: 0,
-                maxWidth: '100%'
-              }}
-            >
-              {worksPage.projects && worksPage.projects.length > 0 ? (
-                <div className="space-y-8">
-                  {worksPage.projects.map((project: any) => (
-                    <div 
-                      key={project._id} 
-                      className="border-b border-light pb-8 last:border-0"
-                      style={{
-                        // Ensure project container maintains stable width
-                        width: '100%',
-                        boxSizing: 'border-box',
-                        // Prevent layout shifts
-                        contain: 'layout',
-                        // Maintain stable positioning
-                        position: 'relative'
-                      }}
-                    > 
-                      {project.projectDetails && (
-                        <div className="prose-custom mb-4">
-                          <PortableText 
-                            value={project.projectDetails} 
-                            components={contentPageTextComponents} 
-                          />
-                        </div>
-                      )}
-                      {project.imageCarousel && project.imageCarousel.length > 0 && (
-                        <div className="mb-4">
-                          <ImageCarousel 
-                            images={project.imageCarousel} 
-                            projectTitle={project.title}
-                          />
-                        </div>
-                      )}
-                      {project.projectDescription && (
-                        <div 
-                          style={{ 
-                            // Use flex to maintain stable positioning
-                            display: 'flex',
-                            flexDirection: 'column',
-                            // Prevent layout shifts
-                            contain: 'layout style',
-                            // Maintain stable position
-                            position: 'relative',
-                            width: '100%'
-                          }}
-                        >
-                          <TruncatedDescription 
-                            value={project.projectDescription} 
-                            components={contentPageTextComponents} 
-                          />
-                        </div>
-                      )}
-                      {project.projectLinks && project.projectLinks.length > 0 && (
-                        <div className="mt-4">
-                          <ul className="space-y-2">
-                            {project.projectLinks.map((link: { label: string; url: string }, index: number) => (
-                              <li key={index}>
-                                <a 
-                                  href={link.url} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                  className="text-sm no-underline hover:underline transition-all"
-                                >
-                                  {link.label}
-                                </a>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center text-muted">
-                  <p className="text-sm">No projects available</p>
-                  <p className="text-xs mt-2">Add projects to this page in the Sanity Studio</p>
                 </div>
               )}
             </div>
@@ -933,7 +896,7 @@ export default function ContentPanel() {
   }
 
   // Slow down expand/contract animations; keep faster timing when fully hiding
-  const durationClass = stage === 'hidden' ? 'duration-300' : 'duration-500'
+  const durationClass = 'duration-500'
 
   // ---- Mobile rendering ---- //
   // Get current page data for content pages
@@ -942,15 +905,15 @@ export default function ContentPanel() {
     : null
 
   // Determine panel width based on expansion
-  const panelWidthClass = isPanelExpanded ? 'w-[584px]' : 'w-96'
+  const panelWidthClass = isPanelExpanded ? 'w-[564px]' : 'w-96'
 
   return (
     <>
       {/* Mobile Panel */}
       {isMobile && (
         <div
-          className={`fixed bottom-0 left-0 right-0 flex flex-col overflow-hidden transition-transform ease-in-out z-30 ${durationClass} ${translateClass} ${heightClass}`}
-          style={{ display: isVisible ? 'flex' : 'none' }}
+          className={`fixed bottom-0 left-0 right-0 flex flex-col overflow-hidden transition-transform z-30 ${durationClass} ${translateClass} ${heightClass}`}
+          style={{ display: isVisible ? 'flex' : 'none', transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)' }}
           onClick={(e) => {
             // Only handle clicks on the panel background, not on interactive elements
             if (e.target === e.currentTarget && stage === 'peek') {
@@ -1022,11 +985,14 @@ export default function ContentPanel() {
 
       {/* Desktop Panel */}
       {!isMobile && (
-        <div 
-          className={`absolute top-0 right-0 h-full z-30 ${panelWidthClass} border-l border-light bg-dark flex flex-col overflow-hidden transition-all duration-300 ${
-            isAnimatingOut ? 'animate-slide-out-right' : 'animate-slide-in-right'
-          }`}
-          style={{ display: isVisible ? 'flex' : 'none' }}
+        <div
+          className={`absolute top-0 right-0 h-full z-30 ${panelWidthClass} border-l border-light bg-dark flex flex-col overflow-hidden`}
+          style={{
+            transform: stage !== 'hidden' ? 'translateX(0)' : 'translateX(100%)',
+            transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), width 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+            pointerEvents: stage !== 'hidden' ? 'auto' : 'none',
+            visibility: isVisible ? 'visible' : 'hidden',
+          }}
           onClick={(e) => e.stopPropagation()} // Prevent clicks inside panel from triggering minimize
         >
         {/* Panel header with expand and close buttons */}
@@ -1059,18 +1025,25 @@ export default function ContentPanel() {
         </button>
 
         {/* Panel content */}
-        <div 
-          className="content-scroll flex-1 custom-scrollbar animate-content-fade-in"
-          style={{ 
+        <div
+          ref={scrollContainerRef}
+          className="content-scroll flex-1 custom-scrollbar"
+          style={{
             scrollbarGutter: 'stable',
-            // Always reserve scrollbar space by using scroll instead of auto
             overflowY: 'scroll',
-            // Ensure stable width
             width: '100%',
             boxSizing: 'border-box'
           }}
         >
-          {pageState.currentPage === 'module' ? renderModuleContent() : renderContentPage()}
+          <div
+            style={{
+              opacity: desktopFade === 'fading-out' ? 0 : 1,
+              transition: 'opacity 0.3s ease',
+              willChange: 'opacity',
+            }}
+          >
+            {displayedPage === 'module' ? renderModuleContent() : renderContentPage()}
+          </div>
         </div>
         </div>
       )}

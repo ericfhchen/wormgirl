@@ -33,12 +33,13 @@ export interface SanityModule {
       assetId: string
     }
   }
-  idleVideo: {
+  idleVideo?: {
     asset: {
       playbackId: string
       assetId: string
     }
   }
+  videoEndTimecode?: string
   articleHeading?: string
   body: any[] // Portable Text blocks
   glossary?: Array<{
@@ -86,18 +87,7 @@ export interface SanityLibraryPage {
   }>
 }
 
-export interface SanityWorksPage {
-  _id: string
-  _type: 'worksPage'
-  title: string
-  slug: { current: string }
-  projects?: Array<{
-    _ref: string
-    _type: 'reference'
-  }>
-}
-
-export type SanityPage = SanityAboutPage | SanityLibraryPage | SanityWorksPage
+export type SanityPage = SanityAboutPage | SanityLibraryPage
 
 // GROQ Queries
 export const MODULES_QUERY = `
@@ -126,6 +116,7 @@ export const MODULES_QUERY = `
         assetId
       }
     },
+    videoEndTimecode,
     articleHeading,
     body,
     glossary[] {
@@ -167,6 +158,7 @@ export const MODULE_BY_SLUG_QUERY = `
         assetId
       }
     },
+    videoEndTimecode,
     articleHeading,
     body,
     glossary[] {
@@ -183,7 +175,7 @@ export const MODULE_BY_SLUG_QUERY = `
 `
 
 export const CONTENT_PAGES_QUERY = `
-  *[_type in ["aboutPage", "libraryPage", "worksPage"]] {
+  *[_type in ["aboutPage", "libraryPage"]] {
     _id,
     _type,
     title,
@@ -202,34 +194,13 @@ export const CONTENT_PAGES_QUERY = `
         title,
         url,
         description
-      }
-    },
-    _type == "worksPage" => {
-      projects[]-> {
-        _id,
-        title,
-        slug,
-        category,
-        projectDetails,
-        imageCarousel[] {
-          asset-> {
-            url
-          },
-          caption,
-          alt
-        },
-        projectDescription,
-        projectLinks[] {
-          label,
-          url
-        }
       }
     }
   }
 `
 
 export const CONTENT_PAGE_BY_SLUG_QUERY = `
-  *[_type in ["aboutPage", "libraryPage", "worksPage"] && slug.current == $slug][0] {
+  *[_type in ["aboutPage", "libraryPage"] && slug.current == $slug][0] {
     _id,
     _type,
     title,
@@ -248,27 +219,6 @@ export const CONTENT_PAGE_BY_SLUG_QUERY = `
         title,
         url,
         description
-      }
-    },
-    _type == "worksPage" => {
-      projects[]-> {
-        _id,
-        title,
-        slug,
-        category,
-        projectDetails,
-        imageCarousel[] {
-          asset-> {
-            url
-          },
-          caption,
-          alt
-        },
-        projectDescription,
-        projectLinks[] {
-          label,
-          url
-        }
       }
     }
   }
@@ -285,6 +235,7 @@ export async function getModules(): Promise<SanityModule[]> {
       timeline,
       video,
       idleVideo,
+      videoEndTimecode,
       body,
       glossary,
       footnotes,

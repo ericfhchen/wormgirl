@@ -45,7 +45,7 @@ export default function Sidebar() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-dark">
+    <div className="h-full flex flex-col bg-dark text-light">
 
       {/* Navigation */}
       <div className="flex flex-col overflow-y-auto min-h-0 flex-1 w-full [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -100,14 +100,19 @@ export default function Sidebar() {
                         }}
                       />
                     )}
-                    <div className="flex flex-col p-3 pb-8 justify-start space-y-1 border-b border-light">
-                      <div className={`w-7 h-7 justify-center text-2xl font-serif font-bold ${
+                    <div className="flex flex-col p-3 pb-6 justify-start border-b border-light">
+                      <div className={`w-7 justify-center text-xl leading-tight font-serif font-normal ${
                         isActive ? 'text-dark' : 'text-light group-hover:text-dark'
                       }`}>
                         {index === 0 ? '—' : toRomanNumeral(module.order)}
                       </div>
+                      {index !== 0 && module.timeline && (
+                        <p className="text-sm font-normal font-sc tracking-wide lowercase">
+                          {module.timeline}
+                        </p>
+                      )}
                       <div className="flex-1">
-                        <p className="font-serif font-bold text-sm tracking-wide">{module.title}</p>
+                        <p className="font-serif font-normal text-xs tracking-wide uppercase">{module.title}</p>
                       </div>
                     </div>
                   </button>
@@ -133,16 +138,16 @@ export default function Sidebar() {
                   <button
                     key={page._id}
                     onClick={() => handleContentPageClick(page.slug.current)}
-                    className={`group w-full text-left p-3 border-t border-light hover:bg-light hover:text-dark ${pageState.currentPage === 'content' && pageState.currentPageSlug === page.slug.current ? 'bg-light text-dark' : ''}`}
+                    className={`group w-full text-left px-3 py-1.5 border-t border-light hover:bg-light hover:text-dark ${pageState.currentPage === 'content' && pageState.currentPageSlug === page.slug.current ? 'bg-light text-dark' : ''}`}
                   >
-                  <p className="font-serif font-bold text-sm tracking-wide text-xs">{page.title}</p>
+                  <p className="font-serif font-normal text-xs tracking-wide uppercase">{page.title}</p>
                 </button>
               ))}
             </div>
 
             {/* Footer */}
-            <div className="px-3 py-2 text-xs text-muted">
-              © {new Date().getFullYear()} Worm Girl
+            <div className="px-3 py-1 text-xs font-normal font-sc tracking-wide lowercase text-muted">
+              <span className="text-[0.5rem]" style={{fontVariant: 'normal'}}>©</span> {new Date().getFullYear()} Worm Girl
             </div>
           </div>
         </div>

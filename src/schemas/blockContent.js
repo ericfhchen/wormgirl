@@ -31,6 +31,8 @@ export default {
         {title: 'H3', value: 'h3'},
         {title: 'H4', value: 'h4'},
         {title: 'Quote', value: 'blockquote'},
+        {title: 'Indent', value: 'indent'},
+        {title: 'Quote 2', value: 'quote2'},
       ],
       lists: [
         {title: 'Bullet', value: 'bullet'},
