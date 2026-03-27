@@ -412,12 +412,11 @@ export default function VideoPlayerStacked() {
         const nearEnd = dur && dur !== Infinity && gap < 0.15 && !ref.seeking
         if (nearEnd) {
           if (videoState.queuedModuleIndex !== null) {
-            // Flush closer to the actual end than the normal loop-back threshold.
-            // 0.05s ≈ 1.5 frames at 30fps — much tighter than the 0.15s used for
-            // the seamless loop seek-back, so the last visible frames are shown.
-            if (gap < 0.05) {
-              flushQueuedModule()
-            }
+            // Flush at the loop boundary. On Safari (native HLS) this fires with
+            // frame-accurate timing. On Chrome/Firefox (hls.js) timeupdate is coarser
+            // (~250ms) so we flush at the same nearEnd threshold (0.15s) to avoid
+            // missing the window entirely.
+            flushQueuedModule()
             return
           }
 

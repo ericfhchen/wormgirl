@@ -30,8 +30,9 @@ export default function attachHls(video: HTMLVideoElement, src: string) {
     delete (video as any)._hlsSrc
   }
 
-  if (canNative && !Hls.isSupported()) {
-    // Native playback – just set the src attribute
+  if (canNative) {
+    // Native HLS playback (Safari) — prefer this over hls.js for better
+    // frame-accurate timing on timeupdate events and loop boundaries
     video.src = src
     return
   }
