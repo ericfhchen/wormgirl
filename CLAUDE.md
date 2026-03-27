@@ -190,7 +190,31 @@ PreLoader completes past 90% and fades out once both signals arrive.
 1. Deferring flush to `handleEnded` — **failed**: `handleEnded` doesn't fire reliably with hls.js, causing the video to freeze.
 2. Tightening threshold to `0.05s` — **failed**: hls.js timeupdate jumps over the small window entirely.
 3. Preferring native HLS on Safari desktop — **failed**: caused video quality degradation on Chrome, and Safari desktop still uses hls.js path since `Hls.isSupported()` is true.
-**Remaining approaches to try**: `requestVideoFrameCallback` for frame-accurate flush timing (not dependent on `timeupdate` interval), or a polling rAF loop that checks `currentTime` every frame when a module is queued.
+4. Suppressing loop-back seek + `requestVideoFrameCallback` polling — rVFC fired every ~33ms correctly. With threshold `< 0.005s`, `handleEnded` flushed at `gap=0.0000`. Incoming video ready: `readyState=4`, `currentTime=0`. **Still skipped.**
+5. Removing `vid.pause()` from flushQueuedModule — no difference.
+6. Pre-playing incoming video at opacity 0 before dispatch — Chrome improved, Safari still skipped. Caused freeze if combined with `currentTime=0` seek.
+7. `willChange: 'opacity'` + `transform: translateZ(0)` (GPU compositor layer hints) — **Chrome fixed**, Safari still skipped.
+8. `opacity: 0.001` instead of `0` for inactive videos (keep Safari compositor engaged) — no difference on Safari.
+9. Pre-setting `prevIndexRef` before dispatch (eliminate double-render cycle) — no difference on Safari.
+10. Delaying dispatch until incoming video's rVFC fires (wait for presented frame) — rVFC took 405ms on Safari; old video restarted from frame 0 due to handlePause.
+11. Double-rAF before dispatch — still skipped on Safari.
+12. 100ms micro cross-fade (CSS opacity transition between old and new video) — still visible on Safari.
+13. Extending source video with ~5 overlap frames duplicating loop start — hls.js still skips the same way; overlap frames don't help because the skip is a compositor/rendering issue, not a decoder issue.
+**Root cause**: Two separate issues confirmed via rVFC instrumentation:
+- **hls.js decoder skip**: Video jumps from `gap≈0.08` to `ended` without presenting last 2-3 frames. Safari mobile (native HLS) decodes every frame.
+- **Compositor delay**: Even with perfect flush timing (`gap=0.0000`), the opacity swap between video elements takes 1-2 extra frames on Safari desktop. Chrome was fixed with `willChange: 'opacity'` but Safari's compositor does not respond to the same hints.
+**Conclusion**: Chrome can be fixed with compositor hints (`willChange: 'opacity'`). Safari desktop's skip appears to be an inherent limitation of its video element compositing. No client-side approach tested could eliminate it. The skip is cosmetic and not present on Safari mobile (native HLS).
+
+### Fixed: Intro-to-prelude frame cut on mobile (2026-03-27)
+**Problem**: Visible position shift at the intro→prelude cut on mobile, despite identical source frames and matching `objectPosition` values.
+**Root cause**: VideoPlayerStacked wraps videos in a `translateY(-2rem)` div when the content panel is in `peek` stage, but IntroOverlay had no such transform. The prelude video rendered 32px higher than the intro video at the instant of the cut.
+**Fix**: Added matching content-panel-aware `translateY` wrapper to IntroOverlay's video element. Both components now apply identical transforms (`-2rem` for peek, `-60vh` for expanded).
+**Debug technique**: Used step-by-step pause mode (`window.__debugTransition`) to screenshot the intro's last frame and prelude's first frame independently, then compared `getBoundingClientRect()` to find the 32px offset.
+
+### Fixed: Sequential click during active playback skips rest of clip (2026-03-27)
+**Problem**: When a module's main content is still playing (not yet in idle loop) and the user clicks the next sequential module, the current clip was abandoned immediately and the next module started.
+**Root cause**: `playModule()` dispatched `SET_MODULE` + `PLAY` immediately for all clicks during active playback, with no distinction between sequential and non-sequential.
+**Fix**: Sequential forward clicks during active playback now dispatch `QUEUE_MODULE` instead of `SET_MODULE`. In `handleTimeUpdate`, idle entry is suppressed when a module is queued — the video plays through the 3s idle section to its natural end. `flushQueuedModule` fires at the near-end threshold (`gap < 0.15`) or on the `ended` event (backup). Non-sequential clicks still dispatch `SET_MODULE` immediately, which clears the queue.
 
 ## Debug Tools
 
@@ -218,3 +242,45 @@ MUX_TOKEN_SECRET
 - Timecodes in Sanity: `HH;MM;SS;FF` format at 30fps (semicolons as delimiters).
 - Content panel stages: `hidden` → `peek` → `expanded` (mobile slides up; desktop is side panel).
 - Inter-component signals outside provider stack use custom DOM events (e.g., `intro-video-ready`).
+
+## Mobile Video Position Drift System (2026-03-27)
+
+Mobile videos use animated `object-position` to create a slow pan/drift effect. The system is driven by a `requestAnimationFrame` loop (not CSS transitions) for smooth 60fps updates.
+
+### Architecture
+- **IntroOverlay**: Has its own rAF loop for the intro video drift. Config in `VIDEO_POSITIONS.intro`.
+- **VideoPlayerStacked**: Single rAF loop handles all module video drifts. Config in `MODULE_POSITIONS[]`.
+- Both components apply the same content-panel-aware `translateY` wrapper so the intro→prelude cut is seamless. **Critical**: If you change the video shift transform in one, change it in the other.
+
+### Position Config (`MODULE_POSITIONS` in VideoPlayerStacked)
+- **Simple drift**: `{ start: [x,y], end: [x,y], driftEnd?: timecode }` — single linear drift with cubic ease-in.
+- **Multi-drift**: `{ start, end, drifts: [{ end, driftEnd, driftStart? }] }` — multiple sequential drift phases with holds between them. Each phase uses cubic ease-in (`t³`).
+- `start` of module N MUST match `end` of module N-1 (or intro end for module 0).
+- `end` must match the last drift phase's end position.
+- `driftEnd` timecode = when drift reaches end position. If omitted on simple drift, falls back to `mainEnd`.
+- `driftStart` timecode = when a drift phase begins (for multi-drift gaps/holds).
+
+### Why rAF instead of CSS transitions
+CSS `transition: object-position 0.5s` caused visible "shimmy" — each coarse `timeupdate` (~250ms on hls.js) set a new target, and CSS eased to it in a steppy pattern. Direct DOM writes at 60fps via rAF eliminated this.
+
+### Critical: IntroOverlay ↔ VideoPlayerStacked transform sync
+IntroOverlay wraps its video in a `translateY` div that mirrors VideoPlayerStacked's content-panel-aware shift (`-2rem` for peek, `-60vh` for expanded). Without this, the intro→prelude cut shows a vertical shift because the two `<video>` elements are at different Y positions. This was the root cause of a persistent "frame cut" bug that appeared to be a content mismatch but was actually a 32px offset.
+
+### Current Position Values
+```
+Intro:    [50, 50] → [53, 50]  driftEnd: 00;00;05;12
+Module 0: [53, 50] → [36, 50]  driftEnd: 00;00;06;12
+Module 1: [36, 50] → [60, 40]  driftEnd: 00;00;06;00
+Module 2: [60, 40] → drift1 [30, 15] @ 00;00;20;00 → hold → drift2 [45, 35] @ 00;00;24;00–00;00;28;00
+Module 3+: TBD (currently static)
+```
+
+## Mobile Fixes Checklist (2026-03-27)
+
+- [x] 1. Match mobile module tab bar text + styling to desktop (added `text-light` to inactive button state)
+- [ ] 2. Next Chapter / Prelude button appears above the mobile module tab bar (use `barGap` offset)
+- [ ] 3. Reduce content panel top padding and peek height so more video shows
+- [x] 4. Audit video position — implemented drift system with per-module animated object-position
+- [ ] 5. Top menu: About + Library tabs split width, smaller height, center-aligned text. Library missing books section in DOM.
+- [x] 6. Fix glossary/footnotes click-to-scroll on mobile (hooks bail out with `if (isMobile) return`)
+- [ ] 7. Desktop: glossary/footnote anchor links scroll to wrong position after panel expand/contract. Also need more top offset so highlighted word isn't on the very first line.
