@@ -3,7 +3,7 @@
 import { useModules } from '@/context/ModulesContext'
 import { useVideo } from '@/context/VideoContext'
 import { usePageState } from '@/context/PageStateContext'
-import React, { useRef, useLayoutEffect } from 'react'
+import React, { useRef, useLayoutEffect, useEffect, useCallback } from 'react'
 import { urlFor } from '@/lib/sanity'
 
 // Helper function to convert number to Roman numeral
@@ -38,6 +38,26 @@ export default function MobileModuleBar() {
     collapseContentPanel,
   } = usePageState()
 
+  // Scroll a tab into view by module index
+  const scrollToTab = useCallback((index: number) => {
+    const container = containerRef.current
+    if (!container) return
+    const button = container.children[index] as HTMLElement | undefined
+    if (button) {
+      container.scrollTo({ left: button.offsetLeft, behavior: 'smooth' })
+    }
+  }, [])
+
+  // Listen for external scroll requests (e.g. from Next Chapter button)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const idx = (e as CustomEvent).detail?.index
+      if (typeof idx === 'number') scrollToTab(idx)
+    }
+    window.addEventListener('mobile-module-bar-scroll', handler)
+    return () => window.removeEventListener('mobile-module-bar-scroll', handler)
+  }, [scrollToTab])
+
   const handleModuleClick = (
     e: React.MouseEvent<HTMLButtonElement>,
     index: number,
@@ -53,14 +73,9 @@ export default function MobileModuleBar() {
     }
     playModule(index)
     setModulePage(index, slug)
-    // Panel will already be in peek via setModulePage
 
     // Snap selected tile to the left edge
-    if (containerRef.current) {
-      const button = e.currentTarget as HTMLButtonElement
-      const container = containerRef.current
-      container.scrollTo({ left: button.offsetLeft, behavior: 'smooth' })
-    }
+    scrollToTab(index)
   }
 
   // Determine offset: when the content panel is peeking, move the bar up by the same amount (4rem).
@@ -70,7 +85,7 @@ export default function MobileModuleBar() {
     if (pageState.isTopMenuOpen || pageState.currentPage !== 'module') return ''
 
     if (pageState.contentPanelStage === 'expanded') return '-translate-y-[70vh]' // Above expanded panel
-    if (pageState.contentPanelStage === 'peek') return '-translate-y-24' // Align with peek
+    if (pageState.contentPanelStage === 'peek') return '-translate-y-16' // Align with peek (4rem)
     return ''
   })()
 
@@ -176,7 +191,7 @@ export default function MobileModuleBar() {
               key={module._id}
               onClick={(e) => handleModuleClick(e, index, module.slug.current)}
               className={`relative group flex-shrink-0 w-44 snap-start text-left p-0 transition-colors ${
-                isActive ? 'bg-light text-dark' : 'hover:bg-light hover:text-primary'
+                isActive ? 'bg-light text-dark' : 'text-light hover:bg-light hover:text-primary'
               } ${borderClasses}`}
             >
               {/* Background SVG overlay for selected state */}
@@ -206,16 +221,21 @@ export default function MobileModuleBar() {
                   }}
                 />
               )}
-              <div className="flex flex-col h-full p-3 pb-8 justify-start">
+              <div className="flex flex-col h-full p-3 pb-6 justify-start">
                 <div
-                  className={`w-6 h-6 mb-1 text-lg font-serif font-bold ${
+                  className={`w-7 justify-center text-xl leading-tight font-serif font-normal ${
                     isActive ? 'text-dark' : 'text-light group-hover:text-dark'
                   }`}
                 >
-                  {index === 0 ? 'PRELUDE' : toRomanNumeral(module.order)}
+                  {index === 0 ? '—' : toRomanNumeral(module.order)}
                 </div>
-                <div>
-                  <p className="font-medium text-xs">{module.title}</p>
+                {index !== 0 && module.timeline && (
+                  <p className="text-sm font-normal font-sc tracking-wide lowercase">
+                    {module.timeline}
+                  </p>
+                )}
+                <div className="flex-1">
+                  <p className="font-serif font-normal text-xs tracking-wide uppercase">{module.title}</p>
                 </div>
               </div>
             </button>
