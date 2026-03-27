@@ -12,6 +12,21 @@ import { timecodeToSeconds } from '@/lib/timecode'
 const SIDEBAR_OFFSET_CLASS = 'w-full lg:w-[calc(100vw-180px)]'
 const IDLE_LOOP_DURATION = 3
 
+// Per-clip object-position animation: { start: [x%, y%], end: [x%, y%], driftEnd: timecode }
+// IMPORTANT: intro.end MUST match prelude (module 0) start for seamless cut.
+// driftEnd is the timecode (HH;MM;SS;FF at 30fps) at which the drift reaches its end position.
+const VIDEO_POSITIONS = {
+  intro: { start: [50, 50], end: [53, 50], driftEnd: '00;00;05;12' },
+  // Module positions are defined in VideoPlayerStacked
+} as const
+
+function lerpPosition(start: readonly number[], end: readonly number[], t: number): string {
+  const clampedT = Math.max(0, Math.min(1, t))
+  const x = start[0] + (end[0] - start[0]) * clampedT
+  const y = start[1] + (end[1] - start[1]) * clampedT
+  return `${x.toFixed(2)}% ${y.toFixed(2)}%`
+}
+
 const INTRO_QUERY = `*[_type == "intro"][0]{
   video { asset-> { playbackId } },
   videoEndTimecode,
@@ -41,8 +56,11 @@ export default function IntroOverlay({ onFinish }: { onFinish: () => void }) {
   const [pendingPrelude, setPendingPrelude] = useState(false)
   const { state: videoState, dispatch, playModule, introPreludeRef: pendingPreludeRef } = useVideo()
   const { state: modulesState } = useModules()
-  const { setModulePage, isContentPanelExpanded } = usePageState()
+  const { setModulePage, isContentPanelExpanded, state: pageState } = usePageState()
   const isMobile = useIsMobile()
+
+  // Animated object-position — driven by rAF loop, not React state, for smooth 60fps updates
+  const introDriftEnd = timecodeToSeconds(VIDEO_POSITIONS.intro.driftEnd)
 
   // Debug overlay (press 'd' to toggle)
   const [showDebug, setShowDebug] = useState(false)
@@ -54,7 +72,10 @@ export default function IntroOverlay({ onFinish }: { onFinish: () => void }) {
     return () => clearTimeout(timer)
   }, [])
 
-  const buttonShouldShow = isIdle && (isVideoReady || fallbackReady) && !isClosing && !pendingPrelude && !modulesState.loading && modulesState.modules.length > 0
+  // Hide button immediately on click, before module transition begins
+  const [buttonDismissed, setButtonDismissed] = useState(false)
+
+  const buttonShouldShow = isIdle && (isVideoReady || fallbackReady) && !isClosing && !pendingPrelude && !buttonDismissed && !modulesState.loading && modulesState.modules.length > 0
 
   // Ref mirror of isClosing — avoids stale closures in event handlers
   const isClosingRef = useRef(false)
@@ -99,6 +120,29 @@ export default function IntroOverlay({ onFinish }: { onFinish: () => void }) {
     }
   }, [videoUrl])
 
+  // rAF loop for smooth 60fps object-position drift (mobile only)
+  useEffect(() => {
+    if (!isMobile) return
+    const driftEndSec = introDriftEnd
+    if (driftEndSec === null || driftEndSec <= 0) return
+
+    let rafId: number
+    const tick = () => {
+      const vid = videoRef.current
+      if (vid) {
+        const ct = vid.currentTime
+        const linear = Math.min(ct / driftEndSec, 1)
+        // Cubic ease-in: starts nearly still, accelerates into the drift
+        const eased = linear * linear * linear
+        const pos = lerpPosition(VIDEO_POSITIONS.intro.start, VIDEO_POSITIONS.intro.end, eased)
+        vid.style.objectPosition = pos
+      }
+      rafId = requestAnimationFrame(tick)
+    }
+    rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
+  }, [isMobile, introDriftEnd])
+
   // Wait for target module video element to have decoded frames at position 0
   const waitForVideoReady = (targetIdx: number, cb: () => void) => {
     const TIMEOUT = 5000
@@ -142,12 +186,15 @@ export default function IntroOverlay({ onFinish }: { onFinish: () => void }) {
 
   const triggerPreludeTransition = () => {
     if (isClosingRef.current) return
+
     pendingPreludeRef.current = false
     setPendingPrelude(false)
     isClosingRef.current = true
     setIsClosing(true)
 
-    if (videoRef.current) try { videoRef.current.pause() } catch {}
+    if (videoRef.current) {
+      try { videoRef.current.pause() } catch {}
+    }
 
     // SET_MODULE now — prelude video is pre-loaded but paused at position 0.
     // VideoPlayerStacked will make it visible and the play/pause effect will start it.
@@ -274,50 +321,106 @@ export default function IntroOverlay({ onFinish }: { onFinish: () => void }) {
     })
   }
 
-  // Click handler for the PRELUDE button — uses same flow as sidebar clicks.
+  // Click handler for the PRELUDE button — fade button out first, then trigger transition.
   // playModule(0) sets introPreludeRef synchronously before dispatching.
   const handleClick = () => {
-    playModule(0)
-    const firstModule = modulesState.modules[0]
-    if (firstModule?.slug?.current) {
-      setModulePage(0, firstModule.slug.current)
-    }
+    setButtonDismissed(true)
+    // Wait for button fade-out (300ms) before triggering module transition
+    setTimeout(() => {
+      playModule(0)
+      const firstModule = modulesState.modules[0]
+      if (firstModule?.slug?.current) {
+        setModulePage(0, firstModule.slug.current)
+      }
+    }, 300)
   }
 
   return (
-    <div
-      className={`fixed top-0 left-0 h-full ${SIDEBAR_OFFSET_CLASS} z-[15] flex items-center justify-center`}
-      style={{
-        opacity: overlayOpacity,
-        transition: instantCut ? 'none' : 'opacity 0.3s ease-in-out',
-        pointerEvents: isClosing ? 'none' : 'auto',
-      }}
-    >
-      {/* Video layer */}
-      {videoUrl && (
-        <video
-          ref={videoRef}
-          preload="auto"
-          muted
-          playsInline
-          crossOrigin="anonymous"
-          onCanPlay={handleCanPlay}
-          onTimeUpdate={handleTimeUpdate}
-          onEnded={handleEnded}
-          onPause={handlePause}
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ opacity: isVideoReady ? 1 : 0, transition: 'opacity 0.3s ease-in-out' }}
-        />
-      )}
+    <>
+      <div
+        className={`fixed top-0 left-0 h-full ${SIDEBAR_OFFSET_CLASS} z-[15] flex items-center justify-center`}
+        style={{
+          opacity: overlayOpacity,
+          transition: instantCut ? 'none' : 'opacity 0.3s ease-in-out',
+          pointerEvents: isClosing ? 'none' : 'auto',
+        }}
+      >
+        {/* Video shift wrapper — matches VideoPlayerStacked's translateY for seamless cut */}
+        <div
+          className="absolute inset-0"
+          style={{
+            transform: isMobile
+              ? pageState.contentPanelStage === 'expanded' ? 'translateY(-60vh)'
+                : pageState.contentPanelStage === 'peek' ? 'translateY(-2rem)'
+                : 'translateY(0)'
+              : 'translateY(0)',
+            transition: 'transform 500ms cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+        >
+        {/* Video layer */}
+        {videoUrl && (
+          <video
+            ref={videoRef}
+            preload="auto"
+            muted
+            playsInline
+            crossOrigin="anonymous"
+            onCanPlay={handleCanPlay}
+            onTimeUpdate={handleTimeUpdate}
+            onEnded={handleEnded}
+            onPause={handlePause}
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{
+              opacity: isVideoReady ? 1 : 0,
+              objectPosition: isMobile
+                ? lerpPosition(VIDEO_POSITIONS.intro.start, VIDEO_POSITIONS.intro.end, 0)
+                : '50% 50%',
+              transition: 'opacity 0.3s ease-in-out',
+            }}
+          />
+        )}
 
-      {/* Prelude button — shown only during idle loop */}
+        {/* Black overlay for fade-to-black / fade-from-black transition */}
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundColor: 'black',
+            opacity: blackOverlay ? 1 : 0,
+            transition: 'opacity 0.3s ease-in-out',
+            zIndex: 10,
+            pointerEvents: 'none',
+          }}
+        />
+
+        {/* Debug overlay — press 'd' to toggle */}
+        {showDebug && videoRef.current && (
+          <div className="absolute top-2 left-2 z-50 bg-black/80 text-green-400 font-mono text-xs p-3 rounded pointer-events-none max-w-xs">
+            <div className="font-bold text-white mb-1">IntroOverlay Debug</div>
+            <div>isIdle: <span className="text-yellow-300">{String(isIdle)}</span></div>
+            <div>mainEnd: {mainEnd?.toFixed(2) ?? 'null'}</div>
+            <div>currentTime: {videoRef.current.currentTime?.toFixed(4)}</div>
+            <div>duration: {videoRef.current.duration?.toFixed(4)}</div>
+            <div>paused: {String(videoRef.current.paused)}</div>
+            <div>readyState: {videoRef.current.readyState}</div>
+            <div>pendingPrelude: <span className="text-yellow-300">{String(pendingPrelude)}</span></div>
+            <div>isClosing: {String(isClosing)}</div>
+            <div>blackOverlay: {String(blackOverlay)}</div>
+            <div>moduleIndex: {videoState.currentModuleIndex}</div>
+          </div>
+        )}
+        </div>
+      </div>
+
+      {/* Prelude button — rendered outside overlay stacking context so it sits above module bar (z-40) */}
       <button
         type="button"
         onClick={handleClick}
-        className="absolute bg-black text-light font-serif font-normal text-xs tracking-wide uppercase border-light border hover:bg-light hover:text-black transition-all duration-150 ease-in-out px-5 py-2"
+        className="fixed bg-black text-light font-serif font-normal text-xs tracking-wide uppercase border-light border hover:bg-light hover:text-black px-5 py-2 z-[41]"
         style={{
           left: '50%',
-          bottom: '1rem',
+          bottom: isMobile
+            ? 'calc(var(--mobile-module-bar-offset, 80px) + 0.5rem)'
+            : '1rem',
           transform: (() => {
             if (isMobile) return 'translateX(-50%)'
             const sidebarOffset = 0
@@ -325,41 +428,12 @@ export default function IntroOverlay({ onFinish }: { onFinish: () => void }) {
             return `translateX(calc(-50% - ${sidebarOffset + panelOffset}px))`
           })(),
           opacity: buttonShouldShow ? 1 : 0,
-          transition: 'opacity 0.6s ease-in-out',
+          transition: 'opacity 0.3s ease-in-out',
           pointerEvents: buttonShouldShow ? 'auto' : 'none',
         }}
       >
         {buttonLabel || 'PRELUDE'}
       </button>
-
-      {/* Black overlay for fade-to-black / fade-from-black transition */}
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundColor: 'black',
-          opacity: blackOverlay ? 1 : 0,
-          transition: 'opacity 0.3s ease-in-out',
-          zIndex: 10,
-          pointerEvents: 'none',
-        }}
-      />
-
-      {/* Debug overlay — press 'd' to toggle */}
-      {showDebug && videoRef.current && (
-        <div className="absolute top-2 left-2 z-50 bg-black/80 text-green-400 font-mono text-xs p-3 rounded pointer-events-none max-w-xs">
-          <div className="font-bold text-white mb-1">IntroOverlay Debug</div>
-          <div>isIdle: <span className="text-yellow-300">{String(isIdle)}</span></div>
-          <div>mainEnd: {mainEnd?.toFixed(2) ?? 'null'}</div>
-          <div>currentTime: {videoRef.current.currentTime?.toFixed(4)}</div>
-          <div>duration: {videoRef.current.duration?.toFixed(4)}</div>
-          <div>paused: {String(videoRef.current.paused)}</div>
-          <div>readyState: {videoRef.current.readyState}</div>
-          <div>pendingPrelude: <span className="text-yellow-300">{String(pendingPrelude)}</span></div>
-          <div>isClosing: {String(isClosing)}</div>
-          <div>blackOverlay: {String(blackOverlay)}</div>
-          <div>moduleIndex: {videoState.currentModuleIndex}</div>
-        </div>
-      )}
-    </div>
+    </>
   )
 }

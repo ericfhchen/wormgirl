@@ -7,6 +7,7 @@ import { useVideo } from '@/context/VideoContext'
 import { useModules } from '@/context/ModulesContext'
 import { usePageState } from '@/context/PageStateContext'
 import useIsMobile from '@/lib/hooks/useIsMobile'
+import type { CSSProperties } from 'react'
 import { timecodeToSeconds } from '@/lib/timecode'
 
 // Helper utilities shared with other players
@@ -23,6 +24,50 @@ const getVideoPlaybackId = (video: any) => {
 const getVideoUrl = (module: any) => {
   const playbackId = getVideoPlaybackId(module?.video)
   return playbackId ? `https://stream.mux.com/${playbackId}.m3u8` : null
+}
+
+// Per-module object-position animation config.
+// Simple: { start, end, driftEnd? } — single drift from start to end.
+// Multi-drift: { start, end, drifts[] } — multiple sequential drift phases.
+//   Each drift has: end position, driftEnd timecode, and optional driftStart timecode.
+//   Drift N starts from drift N-1's end (or module start for drift 0).
+//   Between drifts, position holds at the previous drift's end.
+// IMPORTANT: Each module's start MUST match the previous module's (or intro's) end.
+// The final end position (last drift's end, or simple end) is held during idle.
+type DriftPhase = { end: [number, number]; driftEnd: string; driftStart?: string }
+type ModulePosition = {
+  start: [number, number]
+  end: [number, number]
+  driftEnd?: string
+  drifts?: DriftPhase[]
+}
+const MODULE_POSITIONS: ModulePosition[] = [
+  // Module 0 (Prelude) — start must match intro end [53, 50]
+  { start: [53, 50], end: [36, 50], driftEnd: '00;00;06;12' },
+  // Module 1 — start must match module 0 end [36, 50]
+  { start: [36, 50], end: [60, 40], driftEnd: '00;00;06;00' },
+  // Module 2 — start must match module 1 end [60, 40]
+  { start: [60, 40], end: [45, 35], drifts: [
+    { end: [30, 15], driftEnd: '00;00;20;00' },
+    { end: [45, 35], driftStart: '00;00;24;00', driftEnd: '00;00;28;00' },
+  ]},
+  // Module 3 — start must match module 2 end [45, 35]
+  { start: [45, 35], end: [45, 35] },
+  // Module 4
+  { start: [50, 50], end: [50, 50] },
+  // Module 5
+  { start: [50, 50], end: [50, 50] },
+  // Module 6
+  { start: [50, 50], end: [50, 50] },
+  // Module 7
+  { start: [50, 50], end: [50, 50] },
+]
+
+function lerpPosition(start: readonly number[], end: readonly number[], t: number): string {
+  const clampedT = Math.max(0, Math.min(1, t))
+  const x = start[0] + (end[0] - start[0]) * clampedT
+  const y = start[1] + (end[1] - start[1]) * clampedT
+  return `${x.toFixed(2)}% ${y.toFixed(2)}%`
 }
 
 // Get the mainEnd timestamp in seconds — parses video end timecode and subtracts 3s (the baked idle section)
@@ -45,59 +90,14 @@ export default function VideoPlayerStacked() {
   const isMobile = useIsMobile()
   const buttonDuration = 500
 
-  // ----- Dynamic offset for Next Chapter button relative to mobile module bar -----
-  const [barGap, setBarGap] = useState<number | null>(null)
-  const barObserverRef = useRef<ResizeObserver | null>(null)
-
-  useEffect(() => {
-    if (!isMobile) return
-
-    const updateGap = () => {
-      const barEl = document.getElementById('mobile-module-bar')
-      if (!barEl) return
-
-      const rect = barEl.getBoundingClientRect()
-      const viewportHeight = window.innerHeight
-      const offset = viewportHeight - rect.top
-      setBarGap(offset + 16)
-    }
-
-    updateGap()
-
-    let attempts = 0
-    const intervalId = window.setInterval(() => {
-      updateGap()
-      attempts += 1
-      if (attempts >= 10) {
-        clearInterval(intervalId)
-      }
-    }, 150)
-
-    const barEl = document.getElementById('mobile-module-bar')
-    if (barEl && 'ResizeObserver' in window) {
-      barObserverRef.current = new ResizeObserver(updateGap)
-      barObserverRef.current.observe(barEl)
-    }
-
-    window.addEventListener('resize', updateGap)
-    window.addEventListener('orientationchange', updateGap)
-    window.addEventListener('scroll', updateGap, true)
-
-    return () => {
-      clearInterval(intervalId)
-      window.removeEventListener('resize', updateGap)
-      window.removeEventListener('orientationchange', updateGap)
-      window.removeEventListener('scroll', updateGap, true)
-      barObserverRef.current?.disconnect()
-      barObserverRef.current = null
-    }
-  }, [isMobile])
-
   // Local debug toggle – press "d" to show/hide overlay
   const [showDebug, setShowDebug] = useState(false)
 
   // One ref per module video
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([])
+
+  // Per-module animated object-position (mobile only) — updated directly on DOM to avoid re-renders
+  const videoPositionsRef = useRef<string[]>([])
 
 
   // Cache modules list & indices early so all hooks can use them safely
@@ -122,6 +122,76 @@ export default function VideoPlayerStacked() {
   // Current module info
   const currentModule = currentIndex >= 0 && currentIndex < modules.length ? modules[currentIndex] : null
   const mainEnd = currentModule ? getMainEnd(currentModule) : null
+
+  // rAF loop for smooth 60fps object-position drift (mobile only)
+  useEffect(() => {
+    if (!isMobile) return
+
+    let rafId: number
+    const tick = () => {
+      for (let i = 0; i < modules.length; i++) {
+        const ref = videoRefs.current[i]
+        const pos = MODULE_POSITIONS[i]
+        if (!ref || !pos) continue
+
+        // Only animate the active module
+        if (i !== currentIndex) continue
+
+        const ct = ref.currentTime
+        const dur = ref.duration
+        let posStr: string
+
+        if (pos.drifts && pos.drifts.length > 0) {
+          // Multi-drift: walk through phases to find the active one
+          let from: readonly number[] = pos.start
+          posStr = lerpPosition(from, from, 0) // default: hold at start
+
+          for (let d = 0; d < pos.drifts.length; d++) {
+            const drift = pos.drifts[d]
+            const driftStartSec = drift.driftStart ? timecodeToSeconds(drift.driftStart) : (d === 0 ? 0 : null)
+            const driftEndSec = timecodeToSeconds(drift.driftEnd)
+
+            if (driftStartSec === null || driftEndSec === null || driftEndSec <= 0) {
+              from = drift.end
+              continue
+            }
+
+            if (ct < driftStartSec) {
+              // Before this drift starts — hold at current from position
+              posStr = lerpPosition(from, from, 0)
+              break
+            } else if (ct >= driftStartSec && ct < driftEndSec) {
+              // Inside this drift phase
+              const phaseDuration = driftEndSec - driftStartSec
+              const linear = Math.min((ct - driftStartSec) / phaseDuration, 1)
+              const eased = linear * linear * linear
+              posStr = lerpPosition(from, drift.end, eased)
+              break
+            } else {
+              // Past this drift — hold at its end, move to next phase
+              from = drift.end
+              posStr = lerpPosition(from, from, 0)
+            }
+          }
+        } else {
+          // Simple single drift
+          const driftEndSec = pos.driftEnd ? timecodeToSeconds(pos.driftEnd) : null
+          const modMainEnd = getMainEnd(modules[i])
+          const endPoint = driftEndSec ?? modMainEnd ?? (dur && dur !== Infinity && dur > IDLE_LOOP_DURATION ? dur - IDLE_LOOP_DURATION : null)
+
+          const linear = endPoint && endPoint > 0 ? Math.min(ct / endPoint, 1) : 0
+          const eased = linear * linear * linear
+          posStr = lerpPosition(pos.start, pos.end, eased)
+        }
+
+        videoPositionsRef.current[i] = posStr
+        ref.style.objectPosition = posStr
+      }
+      rafId = requestAnimationFrame(tick)
+    }
+    rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
+  }, [isMobile, currentIndex, modules])
 
   // Hide button on module change, then (re-)schedule delayed show if we're in idle mode
   useEffect(() => {
@@ -277,6 +347,16 @@ export default function VideoPlayerStacked() {
         try { ref.currentTime = effectiveMainEnd } catch {}
       }
 
+      // Set position to end immediately for non-sequential jump (mobile)
+      if (isMobile) {
+        const pos = MODULE_POSITIONS[currentIndex]
+        if (pos && ref) {
+          const endPos = lerpPosition(pos.start, pos.end, 1)
+          videoPositionsRef.current[currentIndex] = endPos
+          ref.style.objectPosition = endPos
+        }
+      }
+
       const outDuration = 300
       const inDuration = 300
       const inDelay = outDuration + 20
@@ -308,6 +388,17 @@ export default function VideoPlayerStacked() {
       isFadingRef.current = false
       fadeStartedRef.current = false
       if (videoState.isIdle) dispatch({ type: 'SET_IDLE', payload: false })
+
+      // Set position to start for sequential transition (mobile)
+      if (isMobile) {
+        const pos = MODULE_POSITIONS[currentIndex]
+        if (pos) {
+          const startPos = lerpPosition(pos.start, pos.end, 0)
+          videoPositionsRef.current[currentIndex] = startPos
+          const ref = videoRefs.current[currentIndex]
+          if (ref) ref.style.objectPosition = startPos
+        }
+      }
       prevIndexRef.current = currentIndex
       // Force a synchronous re-render before paint so opacity sees the updated prevIndexRef
       setRenderTick(c => c + 1)
@@ -439,6 +530,18 @@ export default function VideoPlayerStacked() {
     const effectiveMainEnd = modMainEnd ?? (dur && dur !== Infinity && dur > IDLE_LOOP_DURATION ? dur - IDLE_LOOP_DURATION : null)
 
     if (effectiveMainEnd !== null && ct >= effectiveMainEnd - 0.1) {
+      // If a module is queued (sequential click during playback), suppress idle entry
+      // and let the video play through the idle section to its natural end.
+      // Flush near the end (same threshold as idle loop flush) so the switch happens
+      // at the last frame boundary.
+      if (videoState.queuedModuleIndex !== null) {
+        const gap = dur && dur !== Infinity ? dur - ct : Infinity
+        const nearEnd = dur && dur !== Infinity && gap < 0.15 && !ref.seeking
+        if (nearEnd) {
+          flushQueuedModule('activeNearEnd')
+        }
+        return
+      }
       dispatch({ type: 'SET_IDLE', payload: true })
     }
   }
@@ -463,6 +566,8 @@ export default function VideoPlayerStacked() {
         } catch {}
       }
     } else if (!videoState.isIdle) {
+      // If a module was queued during active playback, flush it now
+      if (flushQueuedModule('onEndedActive')) return
       dispatch({ type: 'SET_IDLE', payload: true })
     }
   }
@@ -486,9 +591,19 @@ export default function VideoPlayerStacked() {
   }
 
   return (
-    <div
-      className="relative w-full h-full bg-black overflow-hidden"
-    >
+    <div className="relative w-full h-full bg-black overflow-hidden">
+      {/* Video shift wrapper — translates videos up on mobile when content panel is visible */}
+      <div
+        className="absolute inset-0"
+        style={{
+          transform: isMobile
+            ? pageState.contentPanelStage === 'expanded' ? 'translateY(-60vh)'
+              : pageState.contentPanelStage === 'peek' ? 'translateY(-2rem)'
+              : 'translateY(0)'
+            : 'translateY(0)',
+          transition: 'transform 500ms cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
+      >
       {modules.map((module, idx) => {
         const videoUrl = getVideoUrl(module)
         if (!videoUrl) return null
@@ -526,10 +641,16 @@ export default function VideoPlayerStacked() {
                 return 1
               })(),
               zIndex: idx + 1,
-              objectPosition: !isMobile && isContentPanelExpanded ? 'calc(50% - 90px) 50%' : '50% 50%',
+              objectPosition: isMobile
+                ? (videoPositionsRef.current[idx] || lerpPosition(
+                    (MODULE_POSITIONS[idx] || MODULE_POSITIONS[0]).start,
+                    (MODULE_POSITIONS[idx] || MODULE_POSITIONS[0]).start,
+                    0
+                  ))
+                : isContentPanelExpanded ? 'calc(50% - 90px) 50%' : '50% 50%',
               transition: shouldFade || fadePhase !== 'idle'
-                ? 'opacity 0.3s ease-in-out, object-position 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
-                : 'object-position 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                ? 'opacity 0.3s ease-in-out'
+                : 'none',
             }}
             onLoadedMetadata={() => handleLoadedMetadata(idx)}
             onTimeUpdate={() => handleTimeUpdate(idx)}
@@ -555,34 +676,53 @@ export default function VideoPlayerStacked() {
         }}
       />
 
+      </div>
+
       {/* Next Chapter button (shown only during idle playback, not during intro) */}
       {currentIndex >= 0 && currentIndex < modules.length - 1 && (
         <button
           type="button"
           onClick={() => {
             setButtonVisible(false)
-            playModule(currentIndex + 1)
-            const nextModule = modules[currentIndex + 1]
+            const nextIdx = currentIndex + 1
+            playModule(nextIdx)
+            const nextModule = modules[nextIdx]
             if (nextModule?.slug?.current) {
-              setModulePage(currentIndex + 1, nextModule.slug.current)
+              setModulePage(nextIdx, nextModule.slug.current)
             }
+            // Scroll mobile module bar to the new tab
+            window.dispatchEvent(new CustomEvent('mobile-module-bar-scroll', { detail: { index: nextIdx } }))
           }}
-          className="absolute bg-black text-light font-serif font-normal text-xs tracking-wide uppercase border-light border hover:bg-light hover:text-black transition-transform ease-in-out px-5 py-2 z-[9999]"
+          className="absolute bg-black text-light font-serif font-normal text-xs tracking-wide uppercase border-light border hover:bg-light hover:text-black px-5 py-2 z-30"
           style={{
             left: '50%',
-            bottom: '1rem',
+            // On mobile: sit just above the module bar's resting position, then
+            // apply the same translateY the bar uses so they move in lockstep.
+            bottom: isMobile
+              ? 'calc(var(--mobile-module-bar-height, 0px) + 0.5rem)'
+              : '1rem',
             transform: (() => {
-              if (isMobile) return 'translateX(-50%)'
+              if (isMobile) {
+                // Mirror MobileModuleBar's translateY so button and bar animate together
+                const isMenuOpen = pageState.isTopMenuOpen
+                const isModule = pageState.currentPage === 'module'
+                let ty = '0px'
+                if (!isMenuOpen && isModule) {
+                  if (pageState.contentPanelStage === 'expanded') ty = '-70vh'
+                  else if (pageState.contentPanelStage === 'peek') ty = '-4rem'
+                }
+                return `translateX(-50%) translateY(${ty})`
+              }
               const sidebarOffset = 90
               const panelOffset = isContentPanelExpanded ? 192 : 0
               return `translateX(calc(-50% - ${sidebarOffset + panelOffset}px))`
             })(),
-            opacity: buttonVisible ? 1 : 0,
+            opacity: buttonVisible && !(isMobile && pageState.isTopMenuOpen) ? 1 : 0,
             transition: shouldFade
               ? 'none'
-              : `transform ${buttonDuration}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${buttonDuration}ms cubic-bezier(0.4, 0, 0.2, 1)`,
-            pointerEvents: buttonVisible ? 'auto' : 'none',
-          }}
+              : `transform 500ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${buttonDuration}ms cubic-bezier(0.4, 0, 0.2, 1)`,
+            pointerEvents: buttonVisible && !(isMobile && pageState.isTopMenuOpen) ? 'auto' : 'none',
+          } as CSSProperties}
         >
           Next Chapter
         </button>
