@@ -183,24 +183,14 @@ PreLoader completes past 90% and fades out once both signals arrive.
 **Fix**: PreLoader now waits for both `window.load` AND `intro-video-ready` custom DOM event (dispatched by IntroOverlay on `canPlay`) before completing past 90%.
 
 ### Bug: Sequential module transition skips last frames when timecode is set (2026-03-27)
-**Status**: OPEN
-**Symptoms**: Modules WITH `videoEndTimecode` skip ~4-5 frames at the end of the idle loop when transitioning to the next sequential module. Modules WITHOUT timecodes transition seamlessly from the true last frame.
-**Root cause**: In `VideoPlayerStacked.handleTimeUpdate`, the `nearEnd` check (`dur - ct < 0.15`) triggers `flushQueuedModule()` 150ms (~4.5 frames at 30fps) before the video's actual last frame. This threshold exists for the normal idle loop seek-back (where cutting a few frames early is invisible since the loop is seamless), but it also catches the queued module flush — causing the transition to happen before the last frame is shown.
-**Location**: `VideoPlayerStacked.tsx` lines ~420-431 (the `nearEnd` block inside idle mode handling in `handleTimeUpdate`).
-**Proposed fix**: When `videoState.queuedModuleIndex !== null` and we're in the `nearEnd` zone, do NOT flush. Instead, skip the seek-back too (don't loop) and let the video play to its natural end. `handleEnded` (lines ~458-481) already calls `flushQueuedModule()` and fires at the true last frame. The change is roughly:
-```js
-if (nearEnd) {
-    if (videoState.queuedModuleIndex !== null) {
-        // Don't flush here AND don't seek back — let video play to actual end.
-        // handleEnded will flush at the true last frame.
-        return
-    }
-    // Normal loop-back seek (no queued module)
-    // ... existing seek code ...
-}
-```
-**Risk**: `handleEnded` might not fire reliably with HLS streams on all browsers. If this is a problem, tighten the nearEnd threshold for the queued case (e.g., `dur - ct < 0.02` = ~1 frame) as a fallback, or use `requestVideoFrameCallback` to detect the actual last frame.
-**Additional note**: There may also be a frame-accuracy issue in `timecodeToSeconds` — frame `ff / 30` produces floating-point values (e.g., frame 15 = 0.5 exactly, but frame 7 = 0.2333...). This could cause `mainEnd` to not align perfectly with actual frame boundaries, making the idle loop start/end points slightly off. This is a secondary concern — the primary fix is the nearEnd flush timing.
+**Status**: OPEN — cosmetic only, works perfectly on Safari mobile
+**Symptoms**: Modules WITH `videoEndTimecode` skip ~4-5 frames at the end of the idle loop when transitioning to the next sequential module on desktop. Modules WITHOUT timecodes and Safari mobile transitions are seamless.
+**Root cause**: The `nearEnd` check (`dur - ct < 0.15`) in `handleTimeUpdate` flushes the queued module ~150ms before the video's actual last frame. Safari mobile uses native HLS with frame-accurate `timeupdate` events; desktop browsers use hls.js which fires `timeupdate` coarsely (~250ms intervals).
+**Attempted fixes**:
+1. Deferring flush to `handleEnded` — **failed**: `handleEnded` doesn't fire reliably with hls.js, causing the video to freeze.
+2. Tightening threshold to `0.05s` — **failed**: hls.js timeupdate jumps over the small window entirely.
+3. Preferring native HLS on Safari desktop — **failed**: caused video quality degradation on Chrome, and Safari desktop still uses hls.js path since `Hls.isSupported()` is true.
+**Remaining approaches to try**: `requestVideoFrameCallback` for frame-accurate flush timing (not dependent on `timeupdate` interval), or a polling rAF loop that checks `currentTime` every frame when a module is queued.
 
 ## Debug Tools
 
