@@ -184,7 +184,7 @@ export default function VideoPlayerStacked() {
   }, [videoState.queuedModuleIndex])
 
   // Helper: perform the queued module switch at loop boundary
-  const flushQueuedModule = (source: string) => {
+  const flushQueuedModule = (source?: string) => {
     const queuedIdx = videoState.queuedModuleIndex
     if (queuedIdx === null || flushedRef.current) return false
     flushedRef.current = true
@@ -192,12 +192,6 @@ export default function VideoPlayerStacked() {
     const isSeq = queuedIdx === currentIndex + 1
 
     const ref = videoRefs.current[currentIndex]
-    const ct = ref?.currentTime ?? -1
-    const dur = ref?.duration ?? -1
-    const nextRef = videoRefs.current[queuedIdx]
-    console.log(`[FLUSH] source=${source} | queued=${queuedIdx} isSeq=${isSeq} | ct=${ct.toFixed(4)} dur=${dur.toFixed(4)} gap=${(dur - ct).toFixed(4)}`)
-    console.log(`[FLUSH] incoming video: readyState=${nextRef?.readyState} currentTime=${nextRef?.currentTime?.toFixed(4)} paused=${nextRef?.paused}`)
-    console.log(`[FLUSH] timestamp: ${performance.now().toFixed(2)}ms`)
     try { ref?.pause() } catch {}
 
     // Only suppress fade for sequential forward jumps — non-sequential needs fade-to-black
@@ -310,9 +304,6 @@ export default function VideoPlayerStacked() {
       }
     } else {
       // Sequential navigation OR transition from idle — no fade, instant switch
-      console.log(`[LAYOUT] sequential switch: prev=${prev} → current=${currentIndex} | timestamp=${performance.now().toFixed(2)}ms`)
-      const incomingRef = videoRefs.current[currentIndex]
-      console.log(`[LAYOUT] incoming readyState=${incomingRef?.readyState} currentTime=${incomingRef?.currentTime?.toFixed(4)} paused=${incomingRef?.paused}`)
       setShouldFade(false)
       isFadingRef.current = false
       fadeStartedRef.current = false
@@ -420,17 +411,12 @@ export default function VideoPlayerStacked() {
         const gap = dur && dur !== Infinity ? dur - ct : Infinity
         const nearEnd = dur && dur !== Infinity && gap < 0.15 && !ref.seeking
         if (nearEnd) {
-          console.log(`[IDLE-LOOP] nearEnd | ct=${ct.toFixed(4)} dur=${dur.toFixed(4)} gap=${gap.toFixed(4)} mainEnd=${effectiveMainEnd.toFixed(4)} queued=${videoState.queuedModuleIndex}`)
-
           if (videoState.queuedModuleIndex !== null) {
-            // Flush at the same visual boundary as the normal seek-back (gap < 0.15).
-            // Frames past this point aren't part of the baked seamless loop.
-            console.log(`[IDLE-LOOP] flush at loop boundary | gap=${gap.toFixed(4)}`)
-            flushQueuedModule('timeUpdate-loopBoundary')
+            // Don't flush here AND don't seek back — let the video play to its
+            // actual last frame. handleEnded will flush at the true end.
             return
           }
 
-          console.log(`[IDLE-LOOP] seeking back to mainEnd=${effectiveMainEnd.toFixed(4)}`)
           try {
             if ((ref as any).fastSeek) {
               (ref as any).fastSeek(effectiveMainEnd)
@@ -460,7 +446,6 @@ export default function VideoPlayerStacked() {
     const ref = videoRefs.current[idx]
 
     if (videoState.isIdle && ref) {
-      console.log(`[ENDED] idx=${idx} ct=${ref.currentTime.toFixed(4)} dur=${ref.duration.toFixed(4)} queued=${videoState.queuedModuleIndex}`)
       // If a module is queued, switch on this exact last frame
       if (flushQueuedModule('onEnded')) return
 
@@ -469,7 +454,6 @@ export default function VideoPlayerStacked() {
       const dur = ref.duration
       const effectiveMainEnd = modMainEnd ?? (dur && dur !== Infinity && dur > IDLE_LOOP_DURATION ? dur - IDLE_LOOP_DURATION : null)
       if (effectiveMainEnd !== null) {
-        console.log(`[ENDED] looping back to mainEnd=${effectiveMainEnd.toFixed(4)}`)
         try {
           ref.currentTime = effectiveMainEnd
           ref.play().catch(() => {})

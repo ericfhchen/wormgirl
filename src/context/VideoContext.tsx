@@ -130,7 +130,6 @@ export function VideoProvider({ children }: { children: ReactNode }) {
 
       if (isSequential) {
         // Sequential forward — queue for smooth loop-boundary transition
-        console.log(`[QUEUE] sequential forward: current=${current} → queued=${index} | timestamp=${performance.now().toFixed(2)}ms`)
         dispatch({ type: 'QUEUE_MODULE', payload: index })
       } else {
         // Non-sequential — dispatch immediately so video fade-to-black starts in sync with content panel
