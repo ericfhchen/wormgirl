@@ -2,7 +2,7 @@
 'use client'
 
 import * as React from 'react'
-import { createContext, useContext, useReducer, ReactNode } from 'react'
+import { createContext, useContext, useReducer, useRef, ReactNode } from 'react'
 
 // Types
 interface VideoState {
@@ -13,9 +13,11 @@ interface VideoState {
   duration: number
   isLoading: boolean
   queuedModuleIndex: number | null
+  // Signal for IntroOverlay: prelude was requested from intro, wait for intro video to finish
+  pendingPreludeFromIntro: boolean
 }
 
-type VideoAction = 
+type VideoAction =
   | { type: 'SET_MODULE'; payload: number }
   | { type: 'PLAY' }
   | { type: 'PAUSE' }
@@ -24,6 +26,7 @@ type VideoAction =
   | { type: 'SET_DURATION'; payload: number }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'QUEUE_MODULE'; payload: number | null }
+  | { type: 'SET_PENDING_PRELUDE'; payload: boolean }
 
 interface VideoContextType {
   state: VideoState
@@ -33,6 +36,9 @@ interface VideoContextType {
   togglePlayPause: () => void
   enterIdleMode: () => void
   exitIdleMode: () => void
+  // Ref shared between IntroOverlay and callers (Sidebar, MobileModuleBar) —
+  // set synchronously before playModule(0) to prevent idle-loop seek-back race
+  introPreludeRef: React.MutableRefObject<boolean>
 }
 
 // Initial state
@@ -46,6 +52,7 @@ const initialState: VideoState = {
   duration: 0,
   isLoading: true,
   queuedModuleIndex: null,
+  pendingPreludeFromIntro: false,
 }
 
 // Reducer
@@ -57,8 +64,8 @@ function videoReducer(state: VideoState, action: VideoAction): VideoState {
         currentModuleIndex: action.payload,
         isIdle: false,
         currentTime: 0,
-        // Clear any queued module once we actively switch
         queuedModuleIndex: null,
+        pendingPreludeFromIntro: false,
       }
     case 'PLAY':
       return { ...state, isPlaying: true }
@@ -74,6 +81,8 @@ function videoReducer(state: VideoState, action: VideoAction): VideoState {
       return { ...state, isLoading: action.payload }
     case 'QUEUE_MODULE':
       return { ...state, queuedModuleIndex: action.payload }
+    case 'SET_PENDING_PRELUDE':
+      return { ...state, pendingPreludeFromIntro: action.payload }
     default:
       return state
   }
@@ -85,18 +94,9 @@ const VideoContext = createContext<VideoContextType | undefined>(undefined)
 // Provider
 export function VideoProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(videoReducer, initialState)
-
-  // Debounce timer for rapid, successive module selections
-  const moduleChangeTimeout = React.useRef<number | null>(null)
-  const DEBOUNCE_MS = 350 // wait this long after the *last* click before switching modules
+  const introPreludeRef = useRef(false)
 
   const playModule = (index: number) => {
-    // Always cancel any in-flight debounce so previous clicks can't override this one
-    if (moduleChangeTimeout.current) {
-      clearTimeout(moduleChangeTimeout.current)
-      moduleChangeTimeout.current = null
-    }
-
     // If the selected module is already the current one and we are in idle mode,
     // keep looping the idle video instead of restarting the main video.
     if (index === state.currentModuleIndex && state.isIdle) {
@@ -105,18 +105,17 @@ export function VideoProvider({ children }: { children: ReactNode }) {
 
     // Special handling while the current video is looping its idle clip
     if (state.isIdle) {
-      // From the intro (-1)
+      // From the intro (-1) — IntroOverlay handles the transition
       if (state.currentModuleIndex === -1) {
+        // For prelude (index 0): don't dispatch SET_MODULE yet — IntroOverlay waits for
+        // the intro video to finish, then dispatches SET_MODULE + PLAY itself.
+        // Dispatching now would make VideoPlayerStacked show/play the prelude immediately.
         if (index === 0) {
-          // Sequential (prelude) — stay idle/paused; VideoPlayerStacked does a seamless cut
-          dispatch({ type: 'SET_MODULE', payload: index })
-          dispatch({ type: 'SET_IDLE', payload: true })
-          dispatch({ type: 'PAUSE' })
-        } else {
-          // Out-of-sequence — VideoPlayerStacked will fade-to-black then play
-          dispatch({ type: 'SET_MODULE', payload: index })
-          dispatch({ type: 'PLAY' })
+          introPreludeRef.current = true
+          dispatch({ type: 'SET_PENDING_PRELUDE', payload: true })
+          return
         }
+        dispatch({ type: 'SET_MODULE', payload: index })
         return
       }
 
@@ -127,18 +126,24 @@ export function VideoProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      // Any other module — queue it; let the idle loop finish before switching
-      dispatch({ type: 'QUEUE_MODULE', payload: index })
+      const isSequential = index === current + 1
+
+      if (isSequential) {
+        // Sequential forward — queue for smooth loop-boundary transition
+        console.log(`[QUEUE] sequential forward: current=${current} → queued=${index} | timestamp=${performance.now().toFixed(2)}ms`)
+        dispatch({ type: 'QUEUE_MODULE', payload: index })
+      } else {
+        // Non-sequential — dispatch immediately so video fade-to-black starts in sync with content panel
+        dispatch({ type: 'SET_MODULE', payload: index })
+        dispatch({ type: 'PLAY' })
+      }
       return
     }
 
-    // For rapid consecutive clicks while an active transition may still be in progress,
-    // Debounce and only act on the *last* click when not in idle mode.
-    moduleChangeTimeout.current = window.setTimeout(() => {
-      dispatch({ type: 'SET_MODULE', payload: index })
-      dispatch({ type: 'PLAY' })
-      moduleChangeTimeout.current = null
-    }, DEBOUNCE_MS)
+    // Dispatch immediately — the fade system in VideoPlayerStacked handles rapid clicks
+    // via useLayoutEffect cleanup (clears previous fade timeouts, starts fresh).
+    dispatch({ type: 'SET_MODULE', payload: index })
+    dispatch({ type: 'PLAY' })
   }
 
   const togglePlayPause = () => {
@@ -160,17 +165,9 @@ export function VideoProvider({ children }: { children: ReactNode }) {
     playModule,
     togglePlayPause,
     enterIdleMode,
-    exitIdleMode
+    exitIdleMode,
+    introPreludeRef
   }
-
-  // Cleanup any pending timeouts when the provider unmounts
-  React.useEffect(() => {
-    return () => {
-      if (moduleChangeTimeout.current) {
-        clearTimeout(moduleChangeTimeout.current)
-      }
-    }
-  }, [])
 
   return <VideoContext.Provider value={value}>{children}</VideoContext.Provider>
 }
@@ -182,4 +179,4 @@ export function useVideo() {
     throw new Error('useVideo must be used within a VideoProvider')
   }
   return context
-} 
+}

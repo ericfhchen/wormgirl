@@ -2,49 +2,57 @@ import { useEffect, useRef, useState } from 'react'
 
 /**
  * Full-page pre-loader overlay that simulates loading over 2 seconds.
- * The bar animates to 90 % in ~1.8 s, then waits for the `window.load`
- * event (all resources finished). Once fired, it completes to 100 %,
+ * The bar animates to 90 % in ~1.8 s, then waits for both `window.load`
+ * AND the intro video to be ready. Once both fire, it completes to 100 %,
  * fades out, and unmounts itself.
  */
 export default function PreLoader() {
   const [progress, setProgress] = useState(0)          // 0 – 100
-  const [isPageLoaded, setIsPageLoaded] = useState(false)
   const [isClosing, setIsClosing] = useState(false)
   const [isHidden, setIsHidden] = useState(false)
   const rafId = useRef<number>()
   // Next time (in ms timestamp) when we are allowed to visually update the bar.
   const nextUpdateRef = useRef<number>(0)
+  // Use refs so the rAF loop always sees the latest values without restarting
+  const isReadyRef = useRef(false)
+  const startRef = useRef(performance.now())
 
   // Detect when the page has fully loaded (all assets)
   useEffect(() => {
-    const handleLoad = () => setIsPageLoaded(true)
+    let pageLoaded = document.readyState === 'complete'
+    let videoReady = false
 
-    if (document.readyState === 'complete') {
-      // Already loaded – trigger immediately
-      handleLoad()
-    } else {
-      window.addEventListener('load', handleLoad)
+    const check = () => {
+      if (pageLoaded && videoReady) isReadyRef.current = true
     }
+
+    const handleLoad = () => { pageLoaded = true; check() }
+    const handleVideoReady = () => { videoReady = true; check() }
+
+    if (pageLoaded) check()
+
+    window.addEventListener('load', handleLoad)
+    window.addEventListener('intro-video-ready', handleVideoReady)
 
     return () => {
       window.removeEventListener('load', handleLoad)
+      window.removeEventListener('intro-video-ready', handleVideoReady)
     }
   }, [])
 
-  // Animate progress – simulate up to 90 % until page load, then finish
+  // Single animation loop — never restarts
   useEffect(() => {
     const TOTAL_MS = 2000
-    const START = performance.now()
 
     const step = (now: number) => {
-      const elapsed = now - START
+      const elapsed = now - startRef.current
 
       // Normalised progress purely from elapsed time (0–1)
       const timeFrac = elapsed / TOTAL_MS
 
-      // Clamp progress: up to 90 % until the window has loaded, then up to 100 %.
+      // Clamp progress: up to 90 % until both page loaded AND video ready, then up to 100 %.
       let frac: number
-      if (isPageLoaded) {
+      if (isReadyRef.current) {
         frac = Math.min(1, timeFrac)
       } else {
         frac = Math.min(0.9, timeFrac)
@@ -65,7 +73,7 @@ export default function PreLoader() {
         return
       }
 
-      // At this point we have BOTH: window loaded && >= TOTAL_MS elapsed
+      // At this point we have BOTH: ready && >= TOTAL_MS elapsed
       // Ensure bar is full, hold briefly, then begin fade
       const HOLD_MS = 700
       const FADE_MS = 400
@@ -88,7 +96,7 @@ export default function PreLoader() {
     return () => {
       if (rafId.current) cancelAnimationFrame(rafId.current)
     }
-  }, [isPageLoaded])
+  }, [])
 
   // Unmount once fully closed
   if (isHidden) return null
@@ -115,4 +123,4 @@ export default function PreLoader() {
       </div>
     </div>
   )
-} 
+}

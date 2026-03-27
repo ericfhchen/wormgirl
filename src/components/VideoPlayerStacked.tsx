@@ -106,6 +106,9 @@ export default function VideoPlayerStacked() {
 
   // Track previous index to detect non-sequential jumps
   const prevIndexRef = useRef<number>(-1)
+  // Counter incremented in useLayoutEffect to force a synchronous re-render before paint
+  // when the sequential/fromIdle path updates prevIndexRef (a ref alone won't trigger re-render)
+  const [, setRenderTick] = useState(0)
   const [shouldFade, setShouldFade] = useState(false)
   const [fadePhase, setFadePhase] = useState<'idle' | 'out' | 'in'>('idle')
   // Synchronous ref mirror of shouldFade — used in useEffect to avoid stale closures
@@ -119,13 +122,6 @@ export default function VideoPlayerStacked() {
   // Current module info
   const currentModule = currentIndex >= 0 && currentIndex < modules.length ? modules[currentIndex] : null
   const mainEnd = currentModule ? getMainEnd(currentModule) : null
-
-  // Debug: log mainEnd parsing on module change
-  useEffect(() => {
-    if (currentModule) {
-      console.log('[StackedPlayer] videoEndTimecode:', currentModule.videoEndTimecode, '→ mainEnd:', mainEnd)
-    }
-  }, [currentIndex])
 
   // Hide button on module change, then (re-)schedule delayed show if we're in idle mode
   useEffect(() => {
@@ -180,16 +176,32 @@ export default function VideoPlayerStacked() {
 
   // Track that the next module switch originated from idle (suppresses fade in useLayoutEffect)
   const switchFromIdleRef = useRef(false)
+  // Guard against double-flush (timeUpdate + onEnded can both fire for the same boundary)
+  const flushedRef = useRef(false)
+  // Reset guard when a new module is queued
+  useEffect(() => {
+    if (videoState.queuedModuleIndex !== null) flushedRef.current = false
+  }, [videoState.queuedModuleIndex])
 
   // Helper: perform the queued module switch at loop boundary
-  const flushQueuedModule = () => {
+  const flushQueuedModule = (source: string) => {
     const queuedIdx = videoState.queuedModuleIndex
-    if (queuedIdx === null) return false
+    if (queuedIdx === null || flushedRef.current) return false
+    flushedRef.current = true
+
+    const isSeq = queuedIdx === currentIndex + 1
 
     const ref = videoRefs.current[currentIndex]
+    const ct = ref?.currentTime ?? -1
+    const dur = ref?.duration ?? -1
+    const nextRef = videoRefs.current[queuedIdx]
+    console.log(`[FLUSH] source=${source} | queued=${queuedIdx} isSeq=${isSeq} | ct=${ct.toFixed(4)} dur=${dur.toFixed(4)} gap=${(dur - ct).toFixed(4)}`)
+    console.log(`[FLUSH] incoming video: readyState=${nextRef?.readyState} currentTime=${nextRef?.currentTime?.toFixed(4)} paused=${nextRef?.paused}`)
+    console.log(`[FLUSH] timestamp: ${performance.now().toFixed(2)}ms`)
     try { ref?.pause() } catch {}
 
-    switchFromIdleRef.current = true
+    // Only suppress fade for sequential forward jumps — non-sequential needs fade-to-black
+    switchFromIdleRef.current = isSeq
     dispatch({ type: 'SET_MODULE', payload: queuedIdx })
     dispatch({ type: 'PLAY' })
     dispatch({ type: 'QUEUE_MODULE', payload: null })
@@ -233,72 +245,20 @@ export default function VideoPlayerStacked() {
     return () => window.removeEventListener('keydown', handleKey)
   }, [])
 
-  // Log high-level state changes
-  useEffect(() => {
-    console.log('[StackedPlayer] moduleIndex', videoState.currentModuleIndex, {
-      isIdle: videoState.isIdle,
-      isPlaying: videoState.isPlaying,
-    })
-  }, [videoState.currentModuleIndex, videoState.isIdle, videoState.isPlaying])
-
   // Detect sequential vs non-sequential navigation BEFORE paint to avoid flashes
   useLayoutEffect(() => {
     if (currentIndex === -1) return
 
     const prev = prevIndexRef.current
-
     if (prev === -1) {
-      if (currentIndex === 0) {
-        // First load to Prelude – show instantly, no fade needed
-        prevIndexRef.current = currentIndex
-        setShouldFade(false)
-        isFadingRef.current = false
-        fadeStartedRef.current = false
-        return
-      }
-
-      // First load BUT jumping directly to a later module → treat as non-sequential
-      setShouldFade(true)
-      isFadingRef.current = true
-      fadeStartedRef.current = true
-      setFadePhase('out')
-
-      dispatch({ type: 'SET_IDLE', payload: false })
-
-      // Seek new module to its mainEnd (freeze point)
-      const ref = videoRefs.current[currentIndex]
-      const modMainEnd = getMainEnd(modules[currentIndex])
-      const firstDur = ref?.duration
-      const effectiveMainEnd = modMainEnd ?? (firstDur && firstDur !== Infinity && firstDur > IDLE_LOOP_DURATION ? firstDur - IDLE_LOOP_DURATION : null)
-      if (ref && effectiveMainEnd !== null) {
-        try { ref.currentTime = effectiveMainEnd } catch {}
-      }
-
-      const outDuration = 300
-      const inDuration = 300
-      const inDelay = outDuration + 20
-
-      const t1 = setTimeout(() => {
-        if (effectiveMainEnd !== null) dispatch({ type: 'SET_IDLE', payload: true })
-        setFadePhase('in')
-      }, inDelay)
-
-      const t2 = setTimeout(() => {
-        setFadePhase('idle')
-      }, inDelay + inDuration)
-
-      const t3 = setTimeout(() => {
-        setShouldFade(false)
-        isFadingRef.current = false
-        fadeStartedRef.current = false
-        prevIndexRef.current = currentIndex
-      }, inDelay + inDuration + outDuration)
-
-      return () => {
-        clearTimeout(t1)
-        clearTimeout(t2)
-        clearTimeout(t3)
-      }
+      // Coming from intro — IntroOverlay handles the fade-to-black / fade-from-black transition.
+      // Just make the video layer visible at position 0, no fade, no seek.
+      prevIndexRef.current = currentIndex
+      setShouldFade(false)
+      isFadingRef.current = false
+      fadeStartedRef.current = false
+      setRenderTick(c => c + 1)
+      return
     }
 
     const isSequentialForward = currentIndex === prev + 1
@@ -306,7 +266,7 @@ export default function VideoPlayerStacked() {
     switchFromIdleRef.current = false
 
     if (!isSequentialForward && !fromIdle) {
-      // Non-sequential jump while NOT from idle — fade-to-black covers the cut
+      // Non-sequential jump — fade-to-black covers the cut
       setShouldFade(true)
       isFadingRef.current = true
       fadeStartedRef.current = true
@@ -350,11 +310,16 @@ export default function VideoPlayerStacked() {
       }
     } else {
       // Sequential navigation OR transition from idle — no fade, instant switch
+      console.log(`[LAYOUT] sequential switch: prev=${prev} → current=${currentIndex} | timestamp=${performance.now().toFixed(2)}ms`)
+      const incomingRef = videoRefs.current[currentIndex]
+      console.log(`[LAYOUT] incoming readyState=${incomingRef?.readyState} currentTime=${incomingRef?.currentTime?.toFixed(4)} paused=${incomingRef?.paused}`)
       setShouldFade(false)
       isFadingRef.current = false
       fadeStartedRef.current = false
       if (videoState.isIdle) dispatch({ type: 'SET_IDLE', payload: false })
       prevIndexRef.current = currentIndex
+      // Force a synchronous re-render before paint so opacity sees the updated prevIndexRef
+      setRenderTick(c => c + 1)
     }
   }, [currentIndex])
 
@@ -383,15 +348,12 @@ export default function VideoPlayerStacked() {
 
     const activeRef = videoRefs.current[currentIndex]
     if (activeRef) {
-      if (!fading && (videoState.isPlaying || videoState.isIdle)) {
-        console.log('[StackedPlayer] play/pause effect: playing module', currentIndex, 'readyState:', activeRef.readyState, 'currentTime:', activeRef.currentTime)
-        activeRef.play().catch(console.error)
+      const shouldPlay = !fading && (videoState.isPlaying || videoState.isIdle)
+      if (shouldPlay) {
+        activeRef.play().catch(() => {})
       } else {
-        console.log('[StackedPlayer] play/pause effect: pausing module', currentIndex, 'fading:', fading, 'isPlaying:', videoState.isPlaying, 'isIdle:', videoState.isIdle)
         activeRef.pause()
       }
-    } else {
-      console.log('[StackedPlayer] play/pause effect: NO activeRef for module', currentIndex)
     }
 
     // Pause and rewind all non-active refs
@@ -455,12 +417,20 @@ export default function VideoPlayerStacked() {
       const modMainEnd = getMainEnd(modules[idx])
       const effectiveMainEnd = modMainEnd ?? (dur && dur !== Infinity && dur > IDLE_LOOP_DURATION ? dur - IDLE_LOOP_DURATION : null)
       if (effectiveMainEnd !== null) {
-        const nearEnd = dur && dur !== Infinity && dur - ct < 0.15 && !ref.seeking
+        const gap = dur && dur !== Infinity ? dur - ct : Infinity
+        const nearEnd = dur && dur !== Infinity && gap < 0.15 && !ref.seeking
         if (nearEnd) {
-          // If a module is queued, switch now instead of looping
-          if (flushQueuedModule()) return
+          console.log(`[IDLE-LOOP] nearEnd | ct=${ct.toFixed(4)} dur=${dur.toFixed(4)} gap=${gap.toFixed(4)} mainEnd=${effectiveMainEnd.toFixed(4)} queued=${videoState.queuedModuleIndex}`)
 
-          console.log('[StackedPlayer] idle nearEnd, seeking to', effectiveMainEnd)
+          if (videoState.queuedModuleIndex !== null) {
+            // Flush at the same visual boundary as the normal seek-back (gap < 0.15).
+            // Frames past this point aren't part of the baked seamless loop.
+            console.log(`[IDLE-LOOP] flush at loop boundary | gap=${gap.toFixed(4)}`)
+            flushQueuedModule('timeUpdate-loopBoundary')
+            return
+          }
+
+          console.log(`[IDLE-LOOP] seeking back to mainEnd=${effectiveMainEnd.toFixed(4)}`)
           try {
             if ((ref as any).fastSeek) {
               (ref as any).fastSeek(effectiveMainEnd)
@@ -480,7 +450,6 @@ export default function VideoPlayerStacked() {
     const effectiveMainEnd = modMainEnd ?? (dur && dur !== Infinity && dur > IDLE_LOOP_DURATION ? dur - IDLE_LOOP_DURATION : null)
 
     if (effectiveMainEnd !== null && ct >= effectiveMainEnd - 0.1) {
-      console.log('[StackedPlayer] entering idle mode at', ct, 'mainEnd:', effectiveMainEnd)
       dispatch({ type: 'SET_IDLE', payload: true })
     }
   }
@@ -491,21 +460,22 @@ export default function VideoPlayerStacked() {
     const ref = videoRefs.current[idx]
 
     if (videoState.isIdle && ref) {
-      // If a module is queued, switch now instead of looping
-      if (flushQueuedModule()) return
+      console.log(`[ENDED] idx=${idx} ct=${ref.currentTime.toFixed(4)} dur=${ref.duration.toFixed(4)} queued=${videoState.queuedModuleIndex}`)
+      // If a module is queued, switch on this exact last frame
+      if (flushQueuedModule('onEnded')) return
 
       // Loop back to idle start
       const modMainEnd = getMainEnd(modules[idx])
       const dur = ref.duration
       const effectiveMainEnd = modMainEnd ?? (dur && dur !== Infinity && dur > IDLE_LOOP_DURATION ? dur - IDLE_LOOP_DURATION : null)
       if (effectiveMainEnd !== null) {
+        console.log(`[ENDED] looping back to mainEnd=${effectiveMainEnd.toFixed(4)}`)
         try {
           ref.currentTime = effectiveMainEnd
           ref.play().catch(() => {})
         } catch {}
       }
     } else if (!videoState.isIdle) {
-      console.log('[StackedPlayer] video ended, entering idle')
       dispatch({ type: 'SET_IDLE', payload: true })
     }
   }
@@ -524,12 +494,9 @@ export default function VideoPlayerStacked() {
   }
 
   // No modules yet – show placeholder
-  if (modules.length === 0 || currentIndex === -1) {
-    console.log('[StackedPlayer] rendering black placeholder. modules:', modules.length, 'currentIndex:', currentIndex)
+  if (modules.length === 0) {
     return <div className="relative w-full h-full bg-black" />
   }
-
-  console.log('[StackedPlayer] rendering video elements. currentIndex:', currentIndex, 'shouldFade:', shouldFade, 'fadePhase:', fadePhase)
 
   return (
     <div
@@ -546,7 +513,6 @@ export default function VideoPlayerStacked() {
             ref={(el: HTMLVideoElement | null) => {
               videoRefs.current[idx] = el
               if (el && videoUrl) {
-                if (idx === 0) console.log('[StackedPlayer] ref callback: module 0 video element mounted, attaching HLS')
                 attachHls(el, videoUrl)
               }
             }}
@@ -583,8 +549,7 @@ export default function VideoPlayerStacked() {
             onEnded={() => handleEnded(idx)}
             onPause={() => handlePause(idx)}
             onLoadStart={() => dispatch({ type: 'SET_LOADING', payload: true })}
-            onError={(e: any) => {
-              console.error('Video error', e)
+            onError={() => {
               dispatch({ type: 'SET_LOADING', payload: false })
             }}
           />
@@ -603,8 +568,8 @@ export default function VideoPlayerStacked() {
         }}
       />
 
-      {/* Next Chapter button (shown only during idle playback) */}
-      {currentIndex < modules.length - 1 && (
+      {/* Next Chapter button (shown only during idle playback, not during intro) */}
+      {currentIndex >= 0 && currentIndex < modules.length - 1 && (
         <button
           type="button"
           onClick={() => {

@@ -35,7 +35,6 @@ export default function Sidebar() {
   const contentPages = pagesState.pages
 
   const handleModuleClick = (index: number, slug: string) => {
-    console.log('🎯 Sidebar: Module clicked', { index, slug })
     playModule(index)
     setModulePage(index, slug)
   }

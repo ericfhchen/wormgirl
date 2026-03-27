@@ -29,7 +29,6 @@ export default function RootLayout({
   const [introDone, setIntroDone] = React.useState(false)
 
   const handleIntroFinish = () => {
-    console.log('[Layout] handleIntroFinish called — unmounting IntroOverlay')
     setIntroDone(true)
   }
 
