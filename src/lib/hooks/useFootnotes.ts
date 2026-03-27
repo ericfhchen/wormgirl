@@ -77,8 +77,6 @@ export function useFootnotes(footnotes: any[] = [], isMobile: boolean = false) {
   
   // Scroll to footnote (memoized to prevent re-renders)
   const scrollToFootnote = useCallback((footnoteId: string) => {
-    if (isMobile) return
-    
     const attemptScroll = (attempt = 0) => {
       const element = document.getElementById(`footnote-${footnoteId}`)
       if (element) {
@@ -122,11 +120,10 @@ export function useFootnotes(footnotes: any[] = [], isMobile: boolean = false) {
     }
 
     attemptScroll()
-  }, [isMobile, highlightAllFootnoteInstances])
-  
+  }, [highlightAllFootnoteInstances])
+
   // Scroll back to footnote reference
   const scrollToReference = useCallback((footnoteId: string) => {
-    if (isMobile) return
     const attemptScroll = (attempt = 0) => {
       const element = document.getElementById(`footnote-ref-${footnoteId}`)
       if (element) {
@@ -170,8 +167,8 @@ export function useFootnotes(footnotes: any[] = [], isMobile: boolean = false) {
     }
 
     attemptScroll()
-  }, [isMobile, highlightAllFootnoteInstances])
-  
+  }, [highlightAllFootnoteInstances])
+
   // Reset footnote refs when module changes
   useEffect(() => {
     // When the module (and thus footnotes array) changes we reset the seen-refs set

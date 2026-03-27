@@ -139,8 +139,16 @@ export function VideoProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    // Dispatch immediately — the fade system in VideoPlayerStacked handles rapid clicks
-    // via useLayoutEffect cleanup (clears previous fade timeouts, starts fresh).
+    // Sequential forward during active playback — queue and let the current clip finish
+    // (mirrors the intro-to-prelude pattern: suppress idle loop-back, play to natural end, then switch)
+    const isSequentialForward = index === state.currentModuleIndex + 1
+    if (isSequentialForward) {
+      dispatch({ type: 'QUEUE_MODULE', payload: index })
+      return
+    }
+
+    // Non-sequential during active playback — dispatch immediately, cancel any pending queue.
+    // The fade system in VideoPlayerStacked handles rapid clicks via useLayoutEffect cleanup.
     dispatch({ type: 'SET_MODULE', payload: index })
     dispatch({ type: 'PLAY' })
   }

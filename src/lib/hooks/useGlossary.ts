@@ -76,8 +76,6 @@ export function useGlossary(glossaryTerms: any[] = [], isMobile: boolean = false
   
   // Scroll to glossary term (memoized to prevent re-renders)
   const scrollToGlossaryTerm = useCallback((glossaryId: string) => {
-    if (isMobile) return
-    
     const attemptScroll = (attempt = 0) => {
       const element = document.getElementById(`glossary-${glossaryId}`)
       if (element) {
@@ -121,11 +119,9 @@ export function useGlossary(glossaryTerms: any[] = [], isMobile: boolean = false
     }
 
     attemptScroll()
-  }, [isMobile, highlightAllGlossaryInstances])
+  }, [highlightAllGlossaryInstances])
   
   const scrollToGlossaryReference = useCallback((glossaryId: string) => {
-    if (isMobile) return
-    
     const attemptScroll = (attempt = 0) => {
       const element = document.getElementById(`glossary-ref-${glossaryId}`)
       if (element) {
@@ -169,7 +165,7 @@ export function useGlossary(glossaryTerms: any[] = [], isMobile: boolean = false
     }
 
     attemptScroll()
-  }, [isMobile, highlightAllGlossaryInstances])
+  }, [highlightAllGlossaryInstances])
   
   // Reset glossary refs when module changes
   useEffect(() => {

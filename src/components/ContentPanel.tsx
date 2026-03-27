@@ -52,46 +52,64 @@ export default function ContentPanel() {
   // Ref to scroll container for resetting scroll position on module change
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
+  // Mobile cross-fade: fade out old content, swap, fade in new content
+  const [mobileFade, setMobileFade] = useState<'idle' | 'fading-out' | 'fading-in'>('idle')
+
   useEffect(() => {
     if (!isMobile) return
 
     // Detect module/page change
     if (prevContentKeyRef.current !== contentKey) {
-      // Instantly hide text (no transition)
-      setIsHidden(true)
-
-      // Delay showing depending on whether panel is sliding from expanded → peek
-      const delay = prevStageRef.current === 'expanded' ? 500 : 0
-
-      const timeout = setTimeout(() => {
-        setIsHidden(false)
-        setShouldFadeIn(true) // trigger fade animation
-
-        // reset flag after animation duration so future stage toggles don't animate
-        setTimeout(() => setShouldFadeIn(false), 400)
-      }, delay)
-
-      // Update refs for next change
       prevContentKeyRef.current = contentKey
       prevStageRef.current = stage
 
-      return () => clearTimeout(timeout)
+      const fadeOutDuration = 320
+
+      // Start fade-out (old content still visible via deferred state)
+      setMobileFade('fading-out')
+
+      // After fade-out completes, swap content and fade in
+      const swapTimer = setTimeout(() => {
+        setDisplayedModuleIndex(selectedModuleIndex)
+        setDisplayedPage(pageState.currentPage)
+        setDisplayedPageSlug(pageState.currentPageSlug)
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTo({ top: 0 })
+        }
+
+        // Double-rAF so browser paints new content at opacity 0 before fading in
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setMobileFade('fading-in')
+          })
+        })
+      }, fadeOutDuration)
+
+      const doneTimer = setTimeout(() => {
+        setMobileFade('idle')
+      }, fadeOutDuration + 400)
+
+      return () => {
+        clearTimeout(swapTimer)
+        clearTimeout(doneTimer)
+      }
     }
   }, [contentKey, isMobile, stage])
+
+  // Sync deferred state on first render so content appears immediately
+  useEffect(() => {
+    if (!isFirstRenderRef.current) return
+    isFirstRenderRef.current = false
+    setDisplayedModuleIndex(selectedModuleIndex)
+    setDisplayedPage(pageState.currentPage)
+    setDisplayedPageSlug(pageState.currentPageSlug)
+  }, [])
 
   // Desktop cross-fade: when contentKey changes, fade out then swap content then fade in.
   // Timings are synchronised with the video overlay (300ms fade-in, hold, 300ms fade-out).
   useEffect(() => {
     if (isMobile) return
-    // Skip the initial render — content should just appear
-    if (isFirstRenderRef.current) {
-      isFirstRenderRef.current = false
-      // Sync displayed state on first render
-      setDisplayedModuleIndex(selectedModuleIndex)
-      setDisplayedPage(pageState.currentPage)
-      setDisplayedPageSlug(pageState.currentPageSlug)
-      return
-    }
+    if (isFirstRenderRef.current) return
 
     // Content-to-content transitions don't need video-sync timing.
     // Timers must respect the 300ms CSS transition duration — swap content
@@ -189,23 +207,18 @@ export default function ContentPanel() {
   // the DOM instance stable across renders.
   useEffect(() => {
     setContentKey(prev => prev + 1)
-    // On mobile, reset scroll immediately; on desktop the fade effect handles it
-    if (isMobile && scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({ top: 0 })
-    }
     setPanelMaximized(false)
   }, [selectedModuleIndex, pageState.currentPage, pageState.currentPageSlug])
 
   // Get current module from centralized context
-  // On desktop, use the deferred displayedModuleIndex so old content stays
-  // visible during fade-out; on mobile, use selectedModuleIndex directly.
-  const effectiveModuleIndex = isMobile ? selectedModuleIndex : displayedModuleIndex
+  // Use deferred displayedModuleIndex so old content stays visible during fade-out
+  const effectiveModuleIndex = displayedModuleIndex
   const rawModule = getModule(effectiveModuleIndex)
 
   const currentModule = useMemo(() => rawModule, [rawModule?._id])
 
-  // Use the effective page type (deferred on desktop) for content decisions
-  const effectivePageType = isMobile ? pageState.currentPage : displayedPage
+  // Use the deferred page type for content decisions (both mobile and desktop)
+  const effectivePageType = displayedPage
 
   // Memoize footnotes to prevent new array creation on every render
   // Always provide an empty array to ensure hooks are called consistently
@@ -575,9 +588,9 @@ export default function ContentPanel() {
     }
 
     return (
-      <div className="p-4 pt-8 pb-24 md:pb-16">
+      <div className="p-4 pt-0 pb-24 md:pt-8 md:pb-16">
         <div className="max-w-none">
-          
+
           <header className="mb-6">
             <div className="flex items-baseline text-xl font-serif font-normal text-light mb-4">
               {currentModule.order === 0 ? (
@@ -734,8 +747,8 @@ export default function ContentPanel() {
       )
     }
 
-    // On desktop use the deferred slug so old page stays visible during fade-out
-    const effectiveSlug = isMobile ? pageState.currentPageSlug : displayedPageSlug
+    // Use deferred slug so old page stays visible during fade-out
+    const effectiveSlug = displayedPageSlug
     const currentPageData = effectiveSlug
       ? getPageBySlug(effectiveSlug)
       : null
@@ -755,7 +768,7 @@ export default function ContentPanel() {
     switch (currentPageData._type) {
       case 'aboutPage':
         return (
-          <div className="p-4 pt-8 pb-24 md:pb-16">
+          <div className="p-4 pt-0 pb-24 md:pt-8 md:pb-16">
             <h1 className="text-3xl font-bold font-serif italic text-light pb-8">
               {currentPageData.title}
             </h1>
@@ -809,7 +822,7 @@ export default function ContentPanel() {
         }
         
         return (
-          <div className="p-4 pt-8 pb-24 md:pb-16">
+          <div className="p-4 pt-0 pb-24 md:pt-8 md:pb-16">
             <h1 className="text-3xl font-bold font-serif italic text-light pb-8">
               {libraryPage.title}
             </h1>
@@ -856,7 +869,7 @@ export default function ContentPanel() {
   const translateClass = stage === 'hidden'
     ? 'translate-y-full'
     : stage === 'peek'
-      ? 'translate-y-[calc(100%-6rem)]'
+      ? 'translate-y-[calc(100%-4rem)]'
       : 'translate-y-0'
 
   const heightClass = 'h-[70vh]' // keep constant height so grab bar doesn’t jerk
@@ -969,15 +982,13 @@ export default function ContentPanel() {
             }}
           >
             <div
-              className={`pt-4 ${
-                isHidden
-                  ? 'opacity-0 pointer-events-none transition-none'
-                  : shouldFadeIn
-                    ? 'opacity-100 animate-content-fade-in'
-                    : 'opacity-100'
-              }`}
+              className="pt-4"
+              style={{
+                opacity: mobileFade === 'fading-out' ? 0 : 1,
+                transition: mobileFade === 'idle' ? 'none' : 'opacity 0.3s ease-in-out',
+              }}
             >
-              {pageState.currentPage === 'module' ? renderModuleContent() : renderContentPage()}
+              {displayedPage === 'module' ? renderModuleContent() : renderContentPage()}
             </div>
           </div>
         </div>

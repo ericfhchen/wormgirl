@@ -321,22 +321,39 @@ export default function MobileTopMenu() {
                 </div>
               )}
               {libraryPage.sound && libraryPage.sound.length > 0 && (
-                <div className="space-y-4">
-                  <h2 className="text-lg font-semibold mb-4 text-light">Sound</h2>
-                  <ul className="space-y-3">
+                <div className="mb-8">
+                  <h2 className="text-lg font-normal uppercase mb-4 text-light">Sound</h2>
+                  <ul>
                     {libraryPage.sound.map((ref, index) => (
-                      <li key={index} className="border-b border-light pb-3 last:border-0">
-                        <a 
-                          href={ref.url} 
-                          target="_blank" 
+                      <li key={index} className="border-t border-light py-2 last:border-b">
+                        <a
+                          href={ref.url}
+                          target="_blank"
                           rel="noopener noreferrer"
-                          className="text-light hover:text-muted transition-colors"
+                          className="flex items-baseline text-light hover:text-muted transition-colors"
                         >
-                          <h3 className="font-medium text-sm mb-1">{ref.title}</h3>
-                          {ref.description && (
-                            <p className="text-xs text-muted">{ref.description}</p>
-                          )}
-                          <p className="text-xs text-muted mt-1 break-all">{ref.url}</p>
+                          <span className="text-sm font-mono mr-4">{String(index + 1).padStart(3, '0')}</span>
+                          <span className="text-sm">{ref.title}</span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {libraryPage.books && libraryPage.books.length > 0 && (
+                <div className="mb-8">
+                  <h2 className="text-lg font-normal uppercase mb-4 text-light">Books</h2>
+                  <ul>
+                    {libraryPage.books.map((ref, index) => (
+                      <li key={index} className="border-t border-light py-2 last:border-b">
+                        <a
+                          href={ref.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-baseline text-light hover:text-muted transition-colors"
+                        >
+                          <span className="text-sm font-mono mr-4">{String(index + 1).padStart(3, '0')}</span>
+                          <span className="text-sm">{ref.title}</span>
                         </a>
                       </li>
                     ))}
@@ -421,14 +438,12 @@ export default function MobileTopMenu() {
                   <button
                     key={page.slug?.current || page._id}
                     onClick={(e) => handlePageClick(e, page.slug?.current || page._id)}
-                    className={`group flex-shrink-0 w-44 snap-start text-left p-0 transition-colors ${
+                    className={`group flex-1 text-center p-0 transition-colors ${
                       isActive ? 'bg-light text-dark' : 'hover:bg-light hover:text-primary'
                     } ${borderClasses}`}
                   >
-                    <div className="flex flex-col h-full p-3 pb-10 justify-start">
-                      <div className="mb-1">
-                        <p className="font-medium text-xs">{page.title}</p>
-                      </div>
+                    <div className="flex items-center justify-center py-2 px-3">
+                      <p className="font-serif font-normal text-xs tracking-wide uppercase">{page.title}</p>
                     </div>
                   </button>
                 )
