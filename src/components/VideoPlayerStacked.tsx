@@ -412,8 +412,12 @@ export default function VideoPlayerStacked() {
         const nearEnd = dur && dur !== Infinity && gap < 0.15 && !ref.seeking
         if (nearEnd) {
           if (videoState.queuedModuleIndex !== null) {
-            // Don't flush here AND don't seek back — let the video play to its
-            // actual last frame. handleEnded will flush at the true end.
+            // Flush closer to the actual end than the normal loop-back threshold.
+            // 0.05s ≈ 1.5 frames at 30fps — much tighter than the 0.15s used for
+            // the seamless loop seek-back, so the last visible frames are shown.
+            if (gap < 0.05) {
+              flushQueuedModule()
+            }
             return
           }
 
