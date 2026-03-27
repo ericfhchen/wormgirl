@@ -130,7 +130,7 @@ PreLoader is rendered OUTSIDE the provider stack (in layout.tsx). It communicate
 - IntroOverlay dispatches `window.dispatchEvent(new Event('intro-video-ready'))` when `handleCanPlay` fires
 - PreLoader listens for both `window.load` AND `intro-video-ready` before completing the progress bar past 90%
 
-**KNOWN BUG (2026-03-26)**: The PreLoader is currently stuck at 90% — the `intro-video-ready` event may not be reaching the PreLoader, or the rAF loop stops checking after the bar hits 90%. The animation uses refs (`isReadyRef`, `startRef`) to avoid restarting, but when `isReadyRef` flips to true the rAF loop has likely already exited (it stops calling `requestAnimationFrame` once `frac >= 0.9` and `isReady` is false — it keeps looping but `frac` is clamped at 0.9 so `frac < 1` stays true... the loop SHOULD keep running). **Next agent should debug this**: add console.logs to verify (1) `intro-video-ready` event fires, (2) `isReadyRef.current` flips to true, (3) the rAF loop is still running when it flips.
+PreLoader completes past 90% and fades out once both signals arrive.
 
 ## Sanity Data Model
 
@@ -178,8 +178,29 @@ PreLoader is rendered OUTSIDE the provider stack (in layout.tsx). It communicate
 **Problem**: Module videos only rendered after `SET_MODULE` dispatched, causing slow HLS loading during transitions.
 **Fix**: Removed the `currentIndex === -1` early return from VideoPlayerStacked. All module videos now render at opacity 0 from page load, allowing HLS to pre-buffer.
 
-### Bug: PreLoader stuck at 90% (2026-03-26)
-**Status**: OPEN — needs debugging. PreLoader waits for `intro-video-ready` custom event but gets stuck at 90%. The rAF loop should keep running (frac clamped at 0.9, so `frac < 1` is true), so likely the event isn't firing or `isReadyRef` isn't being read. See PreLoader section above for debug approach.
+### Fixed: PreLoader sync with intro video (2026-03-27)
+**Problem**: PreLoader faded out before intro video was ready, showing a black screen.
+**Fix**: PreLoader now waits for both `window.load` AND `intro-video-ready` custom DOM event (dispatched by IntroOverlay on `canPlay`) before completing past 90%.
+
+### Bug: Sequential module transition skips last frames when timecode is set (2026-03-27)
+**Status**: OPEN
+**Symptoms**: Modules WITH `videoEndTimecode` skip ~4-5 frames at the end of the idle loop when transitioning to the next sequential module. Modules WITHOUT timecodes transition seamlessly from the true last frame.
+**Root cause**: In `VideoPlayerStacked.handleTimeUpdate`, the `nearEnd` check (`dur - ct < 0.15`) triggers `flushQueuedModule()` 150ms (~4.5 frames at 30fps) before the video's actual last frame. This threshold exists for the normal idle loop seek-back (where cutting a few frames early is invisible since the loop is seamless), but it also catches the queued module flush — causing the transition to happen before the last frame is shown.
+**Location**: `VideoPlayerStacked.tsx` lines ~420-431 (the `nearEnd` block inside idle mode handling in `handleTimeUpdate`).
+**Proposed fix**: When `videoState.queuedModuleIndex !== null` and we're in the `nearEnd` zone, do NOT flush. Instead, skip the seek-back too (don't loop) and let the video play to its natural end. `handleEnded` (lines ~458-481) already calls `flushQueuedModule()` and fires at the true last frame. The change is roughly:
+```js
+if (nearEnd) {
+    if (videoState.queuedModuleIndex !== null) {
+        // Don't flush here AND don't seek back — let video play to actual end.
+        // handleEnded will flush at the true last frame.
+        return
+    }
+    // Normal loop-back seek (no queued module)
+    // ... existing seek code ...
+}
+```
+**Risk**: `handleEnded` might not fire reliably with HLS streams on all browsers. If this is a problem, tighten the nearEnd threshold for the queued case (e.g., `dur - ct < 0.02` = ~1 frame) as a fallback, or use `requestVideoFrameCallback` to detect the actual last frame.
+**Additional note**: There may also be a frame-accuracy issue in `timecodeToSeconds` — frame `ff / 30` produces floating-point values (e.g., frame 15 = 0.5 exactly, but frame 7 = 0.2333...). This could cause `mainEnd` to not align perfectly with actual frame boundaries, making the idle loop start/end points slightly off. This is a secondary concern — the primary fix is the nearEnd flush timing.
 
 ## Debug Tools
 
